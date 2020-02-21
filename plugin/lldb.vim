@@ -1,19 +1,19 @@
 
 " Vim script glue code for LLDB integration
+"
+"jkjkj
+"
+pyx import vim
 
+" @UPDATED simplified script locator. It should always be nested under CWD
 function! s:FindPythonScriptDir()
-  for dir in pathogen#split(&runtimepath)
-    let searchstr = "python-vim-lldb"
-    let candidates = pathogen#glob_directories(dir . "/" . searchstr)
-    if len(candidates) > 0
-      return candidates[0]
-    endif
-  endfor
-  return
-endfunction()
+  let s:searchstr = "python-vim-lldb"
+  let s:py_dir = getcwd() . "/" . s:searchstr
+  return s:py_dir
+endfunction
 
 function! s:InitLldbPlugin()
-  if has('pythonx') == 0
+  if !has('pythonx')
     call confirm('ERROR: This Vim installation does not have python support. lldb.vim will not work.')
     return
   endif
@@ -117,37 +117,35 @@ function! s:InitLldbPlugin()
   autocmd VimLeavePre * pyx ctrl.doExit()
 
   execute 'pyxfile ' . vim_lldb_pydir . '/plugin.py'
-endfunction()
+endfunction
 
 function! s:CompleteCommand(A, L, P)
-" @TODO make sure this doesn't break: python << EOF
-  pyx << EOF 
+pyx << EOF
 a = vim.eval("a:A")
 l = vim.eval("a:L")
 p = vim.eval("a:P")
 returnCompleteCommand(a, l, p)
 EOF
-endfunction()
+endfunction
 
 function! s:CompleteWindow(A, L, P)
-" @TODO make sure this doesn't break: python << EOF
-  pyx << EOF 
+pyx << EOF
 a = vim.eval("a:A")
 l = vim.eval("a:L")
 p = vim.eval("a:P")
 returnCompleteWindow(a, l, p)
 EOF
-endfunction()
+endfunction
 
 " Returns cword if search term is empty
 function! s:CursorWord(term) 
   return empty(a:term) ? expand('<cword>') : a:term 
-endfunction()
+endfunction
 
 " Returns cleaned cWORD if search term is empty
 function! s:CursorWORD(term) 
   " Will strip all non-alphabetic characters from both sides
   return empty(a:term) ?  substitute(expand('<cWORD>'), '^\A*\(.\{-}\)\A*$', '\1', '') : a:term 
-endfunction()
+endfunction
 
 call s:InitLldbPlugin()
