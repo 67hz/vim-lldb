@@ -13,7 +13,7 @@ function! s:FindPythonScriptDir()
 endfunction()
 
 function! s:InitLldbPlugin()
-  if has('python') == 0 and has('python3') == 0
+  if has('python') == 0 && has('python3') == 0
     call confirm('ERROR: This Vim installation does not have python support. lldb.vim will not work.')
     return
   endif
