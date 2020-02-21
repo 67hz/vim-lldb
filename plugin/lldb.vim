@@ -3,12 +3,11 @@
 "
 
 pyx import vim
+let s:script_dir = resolve(expand("<sfile>:p:h"))
 
-" @UPDATED simplified script locator. It should always be nested under CWD
 function! s:FindPythonScriptDir()
-  let s:searchstr = "python-vim-lldb"
-  let s:py_dir = getcwd() . "/" . s:searchstr
-  return s:py_dir
+  let base_dir = fnamemodify(s:script_dir, ':h')
+  return base_dir . "/python-vim-lldb"
 endfunction
 
 function! s:InitLldbPlugin()
