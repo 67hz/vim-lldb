@@ -51,7 +51,7 @@ def import_lldb():
         # Unable to import lldb module from path returned by `lldb -P`
         pass
 
-    # On Mac OS X, use the try the default path to XCode lldb module
+    # On Mac OS X, try the default path to XCode lldb module
     if "darwin" in sys.platform:
         xcode_python_path = "/Applications/Xcode.app/Contents/SharedFrameworks/LLDB.framework/Versions/Current/Resources/Python/"
         sys.path.append(xcode_python_path)

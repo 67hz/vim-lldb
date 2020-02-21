@@ -9,7 +9,7 @@ try:
     import vim
 except ImportError:
     sys.stderr.write(
-        "Unable to load vim/lldb module. Check lldb is on the path is available (or LLDB is set) and that script is invoked inside Vim with :pyfile")
+            "Unable to load vim/lldb module. Check lldb is on the path is available (or LLDB is set) and that script is invoked inside Vim with :pyxfile. See :help pyxfile for more info.")
     pass
 else:
     # Everthing went well, so use import to start the plugin controller

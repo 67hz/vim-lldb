@@ -1,8 +1,7 @@
 
 " Vim script glue code for LLDB integration
 "
-"jkjkj
-"
+
 pyx import vim
 
 " @UPDATED simplified script locator. It should always be nested under CWD
