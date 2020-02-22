@@ -2,7 +2,6 @@
 " Vim script glue code for LLDB integration
 "
 
-pyx import vim
 let s:script_dir = resolve(expand("<sfile>:p:h"))
 
 function! s:FindPythonScriptDir()
@@ -32,10 +31,14 @@ function! s:InitLldbPlugin()
   let vim_lldb_pydir = s:FindPythonScriptDir()
   execute 'pyx import sys; sys.path.append("' . vim_lldb_pydir . '")'
 
+  " @REMOVE before prod
+  let g:vim_lldb_pydir = vim_lldb_pydir
+
   "
   " Register :L<Command>
   " The LLDB CommandInterpreter provides tab-completion in Vim's command mode.
   " FIXME: this list of commands, at least partially should be auto-generated
+  "
   "
 
   " Window show/hide commands
@@ -105,17 +108,44 @@ function! s:InitLldbPlugin()
   command -nargs=0 Lnext                                                 pyx ctrl.doStep(StepType.OVER)
   command -nargs=0 Lfinish                                               pyx ctrl.doStep(StepType.OUT)
 
+  call s:ServiceLLDBEventQueue()
+
+  " @TODO if import fails need to unset all commands above
+  " if !import -> call s:UnbindToCursor()
+  execute 'pyxfile ' . vim_lldb_pydir . '/plugin.py'
+endfunction
+
+function! s:ServiceLLDBEventQueue()
   " hack: service the LLDB event-queue when the cursor moves
   " FIXME: some threaded solution would be better...but it
   "        would have to be designed carefully because Vim's APIs are non threadsafe;
   "        use of the vim module **MUST** be restricted to the main thread.
   command -nargs=0 Lrefresh pyx ctrl.doRefresh()
-  autocmd CursorMoved * :Lrefresh
-  autocmd CursorHold  * :Lrefresh
-  autocmd VimLeavePre * pyx ctrl.doExit()
+  call s:BindCursor()
 
-  execute 'pyxfile ' . vim_lldb_pydir . '/plugin.py'
 endfunction
+
+
+function! s:BindCursor()
+  augroup bindtocursor
+    autocmd!
+    autocmd CursorMoved * :Lrefresh
+    autocmd CursorHold  * :Lrefresh
+    autocmd VimLeavePre * pyx ctrl.doExit()
+  augroup end
+endfunction
+
+
+
+function! UnbindCursorFromLLDB()
+  augroup bindtocursor
+    autocmd!
+  augroup end
+  echo "vim-LLDB: unbound cursor"
+endfunction
+
+" @TODO remove before prod
+noremap <silent><c-l><c-u> :call UnbindCursorFromLLDB()<Cr>
 
 function! s:CompleteCommand(A, L, P)
 pyx << EOF

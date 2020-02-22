@@ -64,6 +64,7 @@ def import_lldb():
 
     return False
 
+# @TODO unset all changes/bindings/et.al up to here if no lldb
 if not import_lldb():
     import vim
     vim.command(

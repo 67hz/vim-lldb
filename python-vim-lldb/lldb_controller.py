@@ -412,4 +412,7 @@ def returnCompleteWindow(a, l, p):
     vim.command('return "%s%s"' % (separator.join(results), separator))
 
 global ctrl
+
+# @TODO improve rollback if LLDB not found
+# no ctrl will be set and the plugin goes to hell
 ctrl = LLDBController()
