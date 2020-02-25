@@ -11,11 +11,17 @@ if !has('pythonx')
   finish
 endif
 
-if (exists("g:enable_llvm") && g:enable_llvm == 0) || v:version < 800 || &cp
+if (exists("g:loaded_lldb") || (exists("g:enable_lldb") && g:enable_lldb == 0) || v:version < 800 || &cp)
   "echo("DEBUG: LLDB disabled")
   finish
 endif
-let g:loaded_llvm = 1
+let g:loaded_lldb = 1
+
+
+let g:lldb_custom_path = ""
+if (exists("g:lldb_path"))
+  let g:lldb_custom_path = g:lldb_path
+endif
 
 let s:script_dir = resolve(expand("<sfile>:p:h"))
 
@@ -25,11 +31,20 @@ function! s:FindPythonScriptDir()
 endfunction
 
 function! s:InitLldbPlugin()
-  if !has('pythonx')
-    call confirm('ERROR: This Vim installation does not have python support. lldb.vim will not work.')
+
+  " Setup the python interpreter path
+  let vim_lldb_pydir = s:FindPythonScriptDir()
+  execute 'pyx import sys; sys.path.append("' . vim_lldb_pydir . '")'
+  " if import fails, lldb_disabled is set
+  execute 'pyxfile ' . vim_lldb_pydir . '/plugin.py'
+
+  if(exists("s:lldb_disabled"))
     return
   endif
-  
+
+  " @TODO DEBUG only - remove before prod
+  let g:vim_lldb_pydir = vim_lldb_pydir
+
   " Key-Bindings
   " FIXME: choose sensible keybindings for:
   " - process: start, interrupt, continue, continue-to-cursor
@@ -39,15 +54,6 @@ function! s:InitLldbPlugin()
     " Apple-B toggles breakpoint on cursor
     map <D-B>     :Lbreakpoint<CR>
   endif
-
-  "
-  " Setup the python interpreter path
-  "
-  let vim_lldb_pydir = s:FindPythonScriptDir()
-  execute 'pyx import sys; sys.path.append("' . vim_lldb_pydir . '")'
-
-  " @REMOVE before prod
-  let g:vim_lldb_pydir = vim_lldb_pydir
 
   "
   " Register :L<Command>
@@ -124,11 +130,6 @@ function! s:InitLldbPlugin()
   command -nargs=0 Lfinish                                               pyx ctrl.doStep(StepType.OUT)
 
   call s:ServiceLLDBEventQueue()
-
-  " @TODO if import fails need to unset all commands above
-  " if !import -> call s:UnbindToCursor()
-
-  execute 'pyxfile ' . vim_lldb_pydir . '/plugin.py'
 endfunction
 
 
@@ -140,7 +141,6 @@ function! s:ServiceLLDBEventQueue()
   "        use of the vim module **MUST** be restricted to the main thread.
   command -nargs=0 Lrefresh pyx ctrl.doRefresh()
   call s:BindCursorToLLDB()
-  
 endfunction
 
 
@@ -161,7 +161,6 @@ function! g:UnbindCursorFromLLDB()
   echo "vim-LLDB: unbound cursor"
 endfunction
 
-" @TODO remove before prod
 noremap <silent><c-l><c-u> :call g:UnbindCursorFromLLDB()<Cr>
 noremap <silent><c-l><c-r> :call g:BindCursorToLLDB()<Cr>
 

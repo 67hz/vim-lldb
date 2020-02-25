@@ -46,7 +46,7 @@ To set a custom path for `LLDB`, add the following to `vimrc`:
 
       let g:lldb_path="/path/to/lldb"
 
-## TODOs
+### @TODOs
 
 * better instructions for compiling Vim/Python/LLDB to work in harmony
 * better containment of key-binding
