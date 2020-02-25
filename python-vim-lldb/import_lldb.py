@@ -24,9 +24,7 @@ def import_lldb():
 
     # Allow overriding default path to lldb executable with the LLDB
     # environment variable
-    # @TODO rename back to LLDB before prod - appending
-    # python version for dev verbosity
-    lldb_executable = 'lldb376'
+    lldb_executable = 'lldb'
 
     if 'LLDB' in os.environ and os.path.exists(os.environ['LLDB']):
         lldb_executable = os.environ['LLDB']
