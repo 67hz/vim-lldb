@@ -5,7 +5,7 @@ under development so bugs are expected.
 
 ## Caveats
 
-This plugin leverages the LLDB module, so requires Python support in Vim. The version of Python must also match the version of Python that LLDB is compiled against. This plugin currently supports both Python2 and Python3.
+This plugin leverages the LLDB module, so requires Python support in Vim. The version of Python must also match the version of Python that LLDB is compiled against.
 
 ## TODOs
 
@@ -16,7 +16,7 @@ This plugin leverages the LLDB module, so requires Python support in Vim. The ve
 * Look into term-debug and potential feature parity with gdb
 
 
-# Python 2/3 support
+### Python 2/3 support
 
   See `:help pyx` for more info
 
