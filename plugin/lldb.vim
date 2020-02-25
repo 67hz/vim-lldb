@@ -1,6 +1,21 @@
 
 " Vim script glue code for LLDB integration
 "
+" @TODO verify win support
+let s:is_win = has('win32') || has('win64')
+
+" @TODO check from python2 and python3
+" pyx not supported < vim8.2.0 so will need to create a pyx shim 
+if !has('pythonx')
+  call confirm('ERROR: This Vim installation does not have python support. lldb.vim will not work.')
+  finish
+endif
+
+if (exists("g:enable_llvm") && g:enable_llvm == 0) || v:version < 800 || &cp
+  "echo("DEBUG: LLDB disabled")
+  finish
+endif
+let g:loaded_llvm = 1
 
 let s:script_dir = resolve(expand("<sfile>:p:h"))
 
