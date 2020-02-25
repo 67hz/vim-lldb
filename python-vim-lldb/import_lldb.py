@@ -24,9 +24,13 @@ def import_lldb():
 
     # Allow overriding default path to lldb executable with the LLDB
     # environment variable
-    lldb_executable = 'lldb'
+    # @TODO rename back to LLDB before prod - appending
+    # python version for dev verbosity
+    lldb_executable = 'lldb376'
+
     if 'LLDB' in os.environ and os.path.exists(os.environ['LLDB']):
         lldb_executable = os.environ['LLDB']
+
 
     # Try using builtin module location support ('lldb -P')
     from subprocess import check_output, CalledProcessError
@@ -36,7 +40,8 @@ def import_lldb():
                 "%s -P" %
                 lldb_executable,
                 shell=True,
-                stderr=fnull).strip()
+                stderr=fnull).strip().decode("utf-8")
+
         if not os.path.exists(lldb_minus_p_path):
             # lldb -P returned invalid path, probably too old
             pass
@@ -54,6 +59,9 @@ def import_lldb():
     # On Mac OS X, try the default path to XCode lldb module
     if "darwin" in sys.platform:
         xcode_python_path = "/Applications/Xcode.app/Contents/SharedFrameworks/LLDB.framework/Versions/Current/Resources/Python/"
+        # @TODO remove before prod - set in ENV -
+        # @TODO add ability to read from .vimrc
+        # xcode_python_path = "/Applications/Xcode.app/Contents/SharedFrameworks/LLDB.framework/Resources/Python3/"
         sys.path.append(xcode_python_path)
         try:
             import lldb
@@ -69,4 +77,4 @@ if not import_lldb():
     import vim
     vim.command(
         'redraw | echo "%s"' %
-        " Error loading lldb module; vim-lldb will be disabled. Check LLDB installation or set LLDB environment variable.")
+        "\nError loading lldb module; vim-lldb will be disabled. Check LLDB installation or set LLDB environment variable.")
