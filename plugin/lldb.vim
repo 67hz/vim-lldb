@@ -9,6 +9,11 @@ let s:is_win = has('win32') || has('win64')
 if !has('pythonx')
   call confirm('ERROR: This Vim installation does not have python support. lldb.vim will not work.')
   finish
+elseif (has('python3'))
+  " prefer python3 to python2
+  let s:lldb_python_version = 3
+elseif (has('python'))
+  let s:lldb_python_version = ""
 endif
 
 if (exists("g:loaded_lldb") || (exists("g:enable_lldb") && g:enable_lldb == 0) || v:version < 800 || &cp)
@@ -18,13 +23,14 @@ endif
 let g:loaded_lldb = 1
 
 
+" allow vimrc to set path to lldb
 let g:lldb_custom_path = ""
 if (exists("g:lldb_path"))
   let g:lldb_custom_path = g:lldb_path
 endif
 
-let s:script_dir = resolve(expand("<sfile>:p:h"))
 
+let s:script_dir = resolve(expand("<sfile>:p:h"))
 function! s:FindPythonScriptDir()
   let base_dir = fnamemodify(s:script_dir, ':h')
   return base_dir . "/python-vim-lldb"
