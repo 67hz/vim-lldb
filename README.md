@@ -37,8 +37,6 @@ Verify LLDB's python version by launching the python interpreter in LLDB:
     3.7.6 (default, ...)
 
 
-@TODO add instructions for fixing mismatched versions
-
 If versions are mismatched, either recompile Vim to match the same version as LLDB or vice-versa.
 
 If a custom version of LLDB is compiled to match and it is not the same as the system default, link the matching `LLDB` to vim.
@@ -49,8 +47,7 @@ To set a custom path for `LLDB`, add the following to `vimrc`:
 ### @TODOs
 
 * better instructions for compiling Vim/Python/LLDB to work in harmony
-* better containment of key-binding
-  * this will allow the plugin to "clean up" after itself and roll-back in the case that the LLDB module fails to load
+* check for vim/lldb python versions match before importing lldb
 * Look into term-debug and potential feature parity with gdb
 
 
