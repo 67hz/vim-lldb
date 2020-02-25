@@ -112,21 +112,24 @@ function! s:InitLldbPlugin()
 
   " @TODO if import fails need to unset all commands above
   " if !import -> call s:UnbindToCursor()
+
   execute 'pyxfile ' . vim_lldb_pydir . '/plugin.py'
 endfunction
 
+
+" @TODO move this and other binding functions to /autoload
 function! s:ServiceLLDBEventQueue()
   " hack: service the LLDB event-queue when the cursor moves
   " FIXME: some threaded solution would be better...but it
   "        would have to be designed carefully because Vim's APIs are non threadsafe;
   "        use of the vim module **MUST** be restricted to the main thread.
   command -nargs=0 Lrefresh pyx ctrl.doRefresh()
-  call s:BindCursor()
-
+  call s:BindCursorToLLDB()
+  
 endfunction
 
 
-function! s:BindCursor()
+function! s:BindCursorToLLDB()
   augroup bindtocursor
     autocmd!
     autocmd CursorMoved * :Lrefresh
@@ -136,8 +139,7 @@ function! s:BindCursor()
 endfunction
 
 
-
-function! UnbindCursorFromLLDB()
+function! g:UnbindCursorFromLLDB()
   augroup bindtocursor
     autocmd!
   augroup end
@@ -145,7 +147,8 @@ function! UnbindCursorFromLLDB()
 endfunction
 
 " @TODO remove before prod
-noremap <silent><c-l><c-u> :call UnbindCursorFromLLDB()<Cr>
+noremap <silent><c-l><c-u> :call g:UnbindCursorFromLLDB()<Cr>
+noremap <silent><c-l><c-r> :call g:BindCursorToLLDB()<Cr>
 
 function! s:CompleteCommand(A, L, P)
 pyx << EOF
