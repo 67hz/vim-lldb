@@ -1,20 +1,19 @@
 # Forked off vim-lldb
 
-This fork is in discovery mode.
+This version of vim-lldb supports both Python2 and Python3. It is currently
+under development so bugs are expected.
 
-##Tasks
+## Caveats
 
+This plugin leverages the LLDB module, so requires Python support in Vim. The version of Python must also match the version of Python that LLDB is compiled against. This plugin currently supports both Python2 and Python3.
 
-* Update to support python3
-  * utilize vim 8.x `pyx` support
+## TODOs
 
+* instructions for compiling Vim/Python/LLDB to work in harmony
+* add ability to set LLDB path from .vimrc in addition to env
+* better containment of key-binding
+  * this will allow the plugin to "clean up" after itself and roll-back in the case that the LLDB module fails to load
 * Look into term-debug and potential feature parity with gdb
-
-* Uncover more @TODOs as I dig deeper into LLDB
-
-
-
-
 
 
 # Python 2/3 support
