@@ -96,6 +96,7 @@ class LLDBController(object):
         p = int(p) - 1
 
         result = lldb.SBStringList()
+        # print("DEBUG: completeCommand result : %s"% result)
         num = self.commandInterpreter.HandleCompletion(l, p, 1, -1, result)
 
         if num == -1:
@@ -317,6 +318,9 @@ class LLDBController(object):
         return (result.Succeeded(), result.GetOutput()
                 if result.Succeeded() else result.GetError())
 
+    # @TODO check if ci.CommandExists(command) before exec
+    # may need this check in the future if auto-generating commands
+    # currently they are expicitly whitelisted in lldb.vim so we are ok
     def doCommand(
             self,
             command,
@@ -333,7 +337,7 @@ class LLDBController(object):
             sys.stderr.write(output)
 
     def getCommandOutput(self, command, command_args=""):
-        """ runs cmd in the command interpreter andreturns (status, result) """
+        """ runs cmd in the command interpreter and returns (status, result) """
         result = lldb.SBCommandReturnObject()
         cmd = "%s %s" % (command, command_args)
         self.commandInterpreter.HandleCommand(cmd, result)

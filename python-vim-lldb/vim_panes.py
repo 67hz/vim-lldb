@@ -37,6 +37,8 @@
 import lldb
 import vim
 
+from utility import *
+
 import sys
 
 # ==============================================================
@@ -299,6 +301,8 @@ class VimPane(object):
         self.on_create()
         goto_previous_window()
 
+    # @TODO fix checking for window exists before updating
+    # bug: delete breakpoint buffer, add breakpoint
     def update(self, target, controller):
         """ updates buffer contents """
         self.target = target
@@ -310,6 +314,7 @@ class VimPane(object):
 
         # Select pane
         goto_window(bufwinnr(self.name))
+        # print("DEBUG: buffer found at #: %s"% bufwinnr(self.name))
 
         # Clean and update content, and apply any highlights.
         self.clean()
@@ -371,10 +376,8 @@ class VimPane(object):
         """ replace buffer with msg"""
         self.prepare()
 
-        # @TODO verify Python2 output doesn't break w/o utf-8 encoding
-        # msg = str(msg.encode("utf-8", "replace")).split('\n')
-        msg = str(msg).split('\n')
-
+        msg = escape_ansi(msg.encode("utf-8", "replace"))
+        msg = str(msg.decode("utf-8").split('\n'))
 
         try:
             self.buffer.append(msg)
@@ -456,6 +459,8 @@ class FrameKeyValuePane(VimPane):
         # Read the frame variables
         vals = self.get_frame_content(frame)
         for (key, value) in vals:
+            # print("DEBUG: key: %s"% key)
+            # print("DEBUG: value: %s"% value)
             lineNum += 1
             if len(frameOldValues) == 0 or (
                     key in frameOldValues and frameOldValues[key] == value):
@@ -526,8 +531,11 @@ class RegistersPane(FrameKeyValuePane):
     def get_frame_content(self, frame):
         """ Returns a list of key-value pairs ("name", "value") of registers in frame """
 
+        # print("frame.getRegisters: %s"% frame.GetRegisters())
         result = []
         for register_sets in frame.GetRegisters():
+            # print("reg set: %s"% register_sets.GetName())
+
             # hack the register group name into the list of registers...
             result.append((" = = %s =" % register_sets.GetName(), ""))
 
