@@ -24,17 +24,37 @@ Plugin '67hz/vim-lldb'
 - Make sure to use Vim 8.2 or above
 - Have Python or Python3 support in Vim
 
-Commands
+vim-lldb Commands
 --------
 
 | Command           | List                                                                    |
 | ---               | ---                                                                     |
 | `:Lunbind`        | Unbind LLDB (*temp fix: use only if LLDB acts up)                       |
 | `:Lbind`          | Rebind above                                                            |
-| `:L<tab>`         | tab completion through all LLDB commands                                |
 | `:help lldb`      | plugin specific documentation                                           |
 | `:Lhelp`          | LLDB's built-in help system (i.e lldb 'help' command)                   |
 |  `:Lscript help (lldb)` | Complete LLDB Python API reference                                |
+| `:L<tab>`         | tab completion through all LLDB commands                                |
+
+
+
+LLDB Commands
+-------------
+
+All LLDB commands available through `:L<lldb_command>`.
+
+
+Here are key commands:
+
+
+| Command           | List                                                                    |
+| ---               | ---                                                                     |
+| `:Ltarget file`   | specify target file                                                     |
+| `:Lbr`            | set breakpoint under cursor                                             |
+
+
+[gdb to lldb map](https://lldb.llvm.org/use/map.html)
+
 
 Customization
 -------------
