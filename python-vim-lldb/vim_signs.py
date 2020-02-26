@@ -4,6 +4,7 @@
 import vim
 
 
+# @TODO allow customization
 class VimSign(object):
     SIGN_TEXT_BREAKPOINT_RESOLVED = "B>"
     SIGN_TEXT_BREAKPOINT_UNRESOLVED = "b>"

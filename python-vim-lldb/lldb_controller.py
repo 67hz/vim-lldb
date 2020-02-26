@@ -18,7 +18,7 @@ from vim_ui import UI
 
 # Shamelessly copy/pasted from lldbutil.py in the test suite
 
-
+# current to lldb@v11 see lldb.py ~223 for values
 def state_type_to_str(enum):
     """Returns the stateType string given an enum."""
     if enum == lldb.eStateInvalid:
@@ -71,6 +71,7 @@ class LLDBController(object):
     eventDelayLaunch = 1
     eventDelayContinue = 1
 
+    # @TODO define customizable options: async
     def __init__(self):
         """ Creates the LLDB SBDebugger object and initializes the UI class. """
         self.target = None
@@ -78,6 +79,8 @@ class LLDBController(object):
         self.load_dependent_modules = True
 
         self.dbg = lldb.SBDebugger.Create()
+        # during step/continue do not return from function until process stops
+        self.dbg.SetAsync(False)
         self.commandInterpreter = self.dbg.GetCommandInterpreter()
 
         self.ui = UI()

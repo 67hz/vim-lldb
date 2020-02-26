@@ -127,6 +127,10 @@ See **Customization** for specifying lldb path in `vimrc`.
 
 ### @TODOs
 
+* add customization options
+* move style settings to separate data structure(s) and centralize
+  * customizable panes
+    * dis view: customize number of instructions to disassemble
 * shorter commands can be ambiguous, e.g. Lb 89
 * fix arg separations for variadics, e.g. Lbreakpoint 83
 * clean up output in panes

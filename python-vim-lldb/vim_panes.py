@@ -223,6 +223,8 @@ class PaneLayout(object):
             self.panes[name].update(target, controller)
 
 
+# @TODO add external customization
+# should read values from vimrc if set
 class VimPane(object):
     """ A generic base class for a pane that displays stuff """
     CHANGED_VALUE_HIGHLIGHT_NAME_GUI = 'ColorColumn'
@@ -231,6 +233,7 @@ class VimPane(object):
 
     SELECTED_HIGHLIGHT_NAME_GUI = 'Cursor'
     SELECTED_HIGHLIGHT_NAME_TERM = 'lldb_selected'
+
     SELECTED_HIGHLIGHT_COLOUR_TERM = 'darkblue'
 
     MSG_NO_TARGET = "Target does not exist."
@@ -368,7 +371,11 @@ class VimPane(object):
         """ replace buffer with msg"""
         self.prepare()
 
-        msg = str(msg.encode("utf-8", "replace")).split('\n')
+        # @TODO verify Python2 output doesn't break w/o utf-8 encoding
+        # msg = str(msg.encode("utf-8", "replace")).split('\n')
+        msg = str(msg).split('\n')
+
+
         try:
             self.buffer.append(msg)
             vim.command("execute \"normal ggdd\"")
