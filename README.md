@@ -51,6 +51,7 @@ Here are key commands:
 | ---               | ---                                                                     |
 | `:Ltarget file`   | specify target file                                                     |
 | `:Lbr`            | set breakpoint under cursor                                             |
+| `:Lrun`           | run                                                                     |
 
 
 [gdb to lldb map](https://lldb.llvm.org/use/map.html)
@@ -118,6 +119,11 @@ See **Customization** for specifying lldb path in `vimrc`.
 
 ### @TODOs
 
+* shorter commands can be ambiguous, e.g. Lb 89
+* fix arg separations for variadics, e.g. Lbreakpoint 83
+* clean up output in panes
+* allow custom theming and remove hard-coded styles
+* handle strings as non-bytes for Python3
 * better instructions for compiling Vim/Python/LLDB to work in harmony
 * check for vim/lldb python versions match before importing lldb
 * Look into term-debug and potential feature parity with gdb
