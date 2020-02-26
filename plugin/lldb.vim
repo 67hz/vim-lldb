@@ -1,7 +1,7 @@
 
 " Vim script glue code for LLDB integration
 "
-" @TODO verify win support
+" @TODO add/verify win support
 let s:is_win = has('win32') || has('win64')
 
 " @TODO check from python2 and python3
@@ -127,6 +127,8 @@ function! s:InitLldbPlugin()
   " Continue
   command -complete=custom,s:CompleteCommand -nargs=* Lcontinue          pyx ctrl.doContinue()
 
+
+
   " Thread-Stepping (no autocompletion)
   command -nargs=0 Lstepinst                                             pyx ctrl.doStep(StepType.INSTRUCTION)
   command -nargs=0 Lstepinstover                                         pyx ctrl.doStep(StepType.INSTRUCTION_OVER)
@@ -134,6 +136,11 @@ function! s:InitLldbPlugin()
   command -nargs=0 Lstep                                                 pyx ctrl.doStep(StepType.INTO)
   command -nargs=0 Lnext                                                 pyx ctrl.doStep(StepType.OVER)
   command -nargs=0 Lfinish                                               pyx ctrl.doStep(StepType.OUT)
+
+
+  " Bind/Unbind
+  command! -bar -bang Lunbind                call s:UnbindCursorFromLLDB()
+  command! -bar -bang Lbind                call s:BindCursorToLLDB()
 
   call s:ServiceLLDBEventQueue()
 endfunction
@@ -160,15 +167,13 @@ function! s:BindCursorToLLDB()
 endfunction
 
 
-function! g:UnbindCursorFromLLDB()
+function! s:UnbindCursorFromLLDB()
   augroup bindtocursor
     autocmd!
   augroup end
   echo "vim-LLDB: unbound cursor"
 endfunction
 
-noremap <silent><c-l><c-u> :call g:UnbindCursorFromLLDB()<Cr>
-noremap <silent><c-l><c-r> :call g:BindCursorToLLDB()<Cr>
 
 function! s:CompleteCommand(A, L, P)
 pyx << EOF

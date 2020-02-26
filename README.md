@@ -1,11 +1,63 @@
-# vim-lldb
+vim-lldb
+========
 
-## LLDB debugging in Vim
+### LLDB debugging in Vim
 
 This version of vim-lldb supports both Python2 and Python3. This was forked from LLVM tools which only supports Python2. It is currently under development so there will be bugs. If you see something, say something.
 
 
-## Caveats
+Installation
+------------
+
+### Using [vim-plug](https://github.com/junegunn/vim-plug)
+
+```vim
+Plug '67hz/vim-lldb'
+```
+
+### Using [vundle](https://github.com/VundleVim/Vundle.Vim)
+
+```vim
+Plugin '67hz/vim-lldb'
+```
+
+- Make sure to use Vim 8.2 or above
+- Have Python or Python3 support in Vim
+
+Commands
+--------
+
+| Command           | List                                                                    |
+| ---               | ---                                                                     |
+| `:Lunbind`        | Unbind LLDB (*temp fix: use only if LLDB acts up)                       |
+| `:Lbind`          | Rebind above                                                            |
+| `:help lldb`      | see full help menu for LLDB specific commands                           |
+
+
+Customization
+-------------
+
+### Global options
+
+If a custom version of LLDB is compiled to match and it is not the same as the system default, link the matching `LLDB` to vim.
+To set a custom path for `LLDB`, add the following to `vimrc`:
+
+```vim
+" add path to lldb
+let g:lldb_path="/absolute/path/to/lldb"
+```
+
+Enable/disable
+
+```vim
+" enable llvm, set to 0 to disable
+let g:enable_llvm = 1
+```
+
+
+
+Verifying Python Support
+------------------------
 
 This plugin leverages the `LLDB` module which requires python support in Vim. Vim's python version with must match `LLDB`'s python interpreter version.
 
@@ -39,28 +91,11 @@ Verify LLDB's python version by launching the python interpreter in LLDB:
 
 If versions are mismatched, either recompile Vim to match the same version as LLDB or vice-versa.
 
-If a custom version of LLDB is compiled to match and it is not the same as the system default, link the matching `LLDB` to vim.
-To set a custom path for `LLDB`, add the following to `vimrc`:
+See **Customization** for specifying lldb path in `vimrc`.
 
-      let g:lldb_path="/path/to/lldb"
 
 ### @TODOs
 
 * better instructions for compiling Vim/Python/LLDB to work in harmony
 * check for vim/lldb python versions match before importing lldb
 * Look into term-debug and potential feature parity with gdb
-
-
-### Python 2/3 support
-
-  See `:help pyx` for more info
-
-
-  If a user prefers Python 2 and wants to fallback to Python 3, he needs to set `pyxversion` explicitly in his `.vimrc`
-
-    E.g.: >
-          if has('python')
-            set pyx=2
-          elseif has('python3')
-            set pyx=3
-          endif
