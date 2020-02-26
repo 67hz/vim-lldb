@@ -3,7 +3,7 @@ vim-lldb
 
 ### LLDB debugging in Vim
 
-This version of vim-lldb supports both Python2 and Python3. This was forked from LLVM tools which only supports Python2. It is currently under development so there will be bugs. If you see something, say something.
+This version of vim-lldb supports Python2 and Python3. This was forked from LLVM tools which only supports Python2. It is currently under development so there will be bugs. If you see something, say something.
 
 
 Installation
@@ -33,7 +33,7 @@ vim-lldb Commands
 | `:Lbind`          | Rebind above                                                            |
 | `:help lldb`      | plugin specific documentation                                           |
 | `:Lhelp`          | LLDB's built-in help system (i.e lldb 'help' command)                   |
-|  `:Lscript help (lldb)` | Complete LLDB Python API reference                                |
+| `:Lscript help (lldb)` | Complete LLDB Python API reference                                |
 | `:L<tab>`         | tab completion through all LLDB commands                                |
 
 
@@ -41,10 +41,19 @@ vim-lldb Commands
 LLDB Commands
 -------------
 
-All LLDB commands available through `:L<lldb_command>`.
+All LLDB commands are available through `:L<lldb_command>`. Using lldb's documentation at `:Lhelp` with `:L<tab>` tab completion is a good place to start. Remember to prepend all commands with `:L`.
+For example:
 
+```vim
+" set a target file
+:Ltarget ./path/to/file
+" set a breakpoint under cursor
+:Lbreakpoint
+" run debugger
+:Lrun
+```
 
-Here are key commands:
+Here are a some example commands:
 
 
 | Command           | List                                                                    |
@@ -62,19 +71,18 @@ Customization
 
 ### Global options
 
-If a custom version of LLDB is compiled to match and it is not the same as the system default, link the matching `LLDB` to vim.
-To set a custom path for `LLDB`, add the following to `vimrc`:
+To set a custom path for `lldb`, add the following to `vimrc`:
 
 ```vim
 " add path to lldb
 let g:lldb_path="/absolute/path/to/lldb"
 ```
 
-Enable/disable
+Enable/disable plugin:
 
 ```vim
-" enable llvm, set to 0 to disable
-let g:enable_llvm = 1
+" enable lldb, set to 0 to disable
+let g:enable_lldb = 1
 ```
 
 
@@ -82,7 +90,7 @@ let g:enable_llvm = 1
 Verifying Python Support
 ------------------------
 
-This plugin leverages the `LLDB` module which requires python support in Vim. Vim's python version with must match `LLDB`'s python interpreter version.
+This plugin leverages the `LLDB` module which requires python support in vim. Vim's python version must match `LLDB`'s python interpreter version.
 
 To verify Vim's python support, run:
 
@@ -90,9 +98,9 @@ To verify Vim's python support, run:
 
 The output must contain either `+python` or `+python3`
 
-The above command displays the major version of vim. It is possible that a different minor/patch version is running between `LLDB` and python. To verify Vim's exact python version, launch vim and run: 
+The above command displays the major version of vim. It is possible that a different minor/patch version is running between `LLDB` and python. To verify vim's exact python version, launch vim and run: 
  
-    : pyx << EOF
+     :pyx << EOF
      import sys
      print(sys.version)
      EOF
@@ -102,7 +110,7 @@ The above command displays the major version of vim. It is possible that a diffe
 
 
 
-Verify LLDB's python version by launching the python interpreter in LLDB: 
+Verify LLDB's version of python by launching the python interpreter in LLDB: 
 
     $> lldb
     (lldb) script
@@ -112,7 +120,7 @@ Verify LLDB's python version by launching the python interpreter in LLDB:
     3.7.6 (default, ...)
 
 
-If versions are mismatched, either recompile Vim to match the same version as LLDB or vice-versa.
+If python versions are mismatched, either recompile Vim to match the same version as LLDB or vice-versa.
 
 See **Customization** for specifying lldb path in `vimrc`.
 
