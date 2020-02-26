@@ -31,8 +31,10 @@ Commands
 | ---               | ---                                                                     |
 | `:Lunbind`        | Unbind LLDB (*temp fix: use only if LLDB acts up)                       |
 | `:Lbind`          | Rebind above                                                            |
-| `:help lldb`      | see full help menu for LLDB specific commands                           |
-
+| `:L<tab>`         | tab completion through all LLDB commands                                |
+| `:help lldb`      | plugin specific documentation                                           |
+| `:Lhelp`          | LLDB's built-in help system (i.e lldb 'help' command)                   |
+|  `:Lscript help (lldb)` | Complete LLDB Python API reference                                |
 
 Customization
 -------------
