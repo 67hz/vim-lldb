@@ -23,7 +23,7 @@ endif
 let g:loaded_lldb = 1
 
 
-" allow vimrc to set some custom options
+" read in custom options from vimrc
 let g:lldb_custom_path = ""
 let g:lldb_async = 1 " async by default
 if (exists("g:lldb_path"))

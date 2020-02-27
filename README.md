@@ -41,19 +41,21 @@ vim-lldb Commands
 LLDB Commands
 -------------
 
-All LLDB commands are available through `:L<lldb_command>`. Using lldb's documentation at `:Lhelp` along with `:L<tab>` tab completion is a good place to start. Remember to prepend all commands with `:L`.
+All LLDB commands are available through `:L<lldb_command>`. Using lldb's documentation at `:Lhelp` along with `:L<tab>` tab completion for all available LLDB commands is a good place to start. Remember to prepend all commands with `:L`.
 For example:
 
 ```vim
 " set a target file
 :Ltarget ./path/to/file
 " set a breakpoint under cursor
-:Lbreakpoint
+:Lbr
 " run debugger
 :Lrun
+" get help for continue command
+:Lhelp continue
 ```
 
-Here are a some example commands:
+Example commands:
 
 
 | Command           | Function                                                                    |
@@ -65,14 +67,16 @@ Here are a some example commands:
 | `:Lnext`          | source level single step over in current thread                         |
 | `:Lsi`            | instruction level single step in current thread                         |
 | `:Lni`            | instruction level single step-over in current thread                    |
+| `Lcontinue`       | Continue execution of all threads in the current process.               |
 | `:Lfinish`        | step out of currently selected frame                                    |
 | `:Lthread return <RETURN EXPRESSION>`| return immediately from currently selected frame with optional return value |
+| `:Lthread select 1`| select thread 1 as default thread for subsequent commands              |
+| `:Lbt all`         | thread backtrace all                                                   |
 | `:Lfr v`          | show args and local vars for current frame                              |
 | `:Lfr v -f x bar` | show contents of variable `bar` formatted as hex                        |
 | `:Lfr v -f b bar` | same as above with binary formatting                                    |
-| `:Lthread select 1`| select thread 1 as default thread for subsequent commands              |
-| `:Lbt all`         | thread backtrack all                                                   |
 | `:Lregister read`  | show the general purpose registers for current thread                  |
+| `:Lregister read rax rsp`  | show the contents of rax, rsp                                  |
 | `:Lregister write rax 123`  | write `123` into rax                                          |
 | `:Ldisassemble --name main` | disassemble any functions named `main`                        |
 | `:Ldisassemble --line` | disassemble current source line for current frame                  |
