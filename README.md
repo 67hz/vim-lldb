@@ -41,7 +41,7 @@ vim-lldb Commands
 LLDB Commands
 -------------
 
-All LLDB commands are available through `:L<lldb_command>`. Using lldb's documentation at `:Lhelp` with `:L<tab>` tab completion is a good place to start. Remember to prepend all commands with `:L`.
+All LLDB commands are available through `:L<lldb_command>`. Using lldb's documentation at `:Lhelp` along with `:L<tab>` tab completion is a good place to start. Remember to prepend all commands with `:L`.
 For example:
 
 ```vim
@@ -56,14 +56,30 @@ For example:
 Here are a some example commands:
 
 
-| Command           | List                                                                    |
+| Command           | Function                                                                    |
 | ---               | ---                                                                     |
 | `:Ltarget file`   | specify target file                                                     |
 | `:Lbr`            | set breakpoint under cursor                                             |
 | `:Lrun`           | run                                                                     |
+| `:Lstep`          | source level single step in current thread                              |
+| `:Lnext`          | source level single step over in current thread                         |
+| `:Lsi`            | instruction level single step in current thread                         |
+| `:Lni`            | instruction level single step-over in current thread                    |
+| `:Lfinish`        | step out of currently selected frame                                    |
+| `:Lthread return <RETURN EXPRESSION>`| return immediately from currently selected frame with optional return value |
+| `:Lfr v`          | show args and local vars for current frame                              |
+| `:Lfr v -f x bar` | show contents of variable `bar` formatted as hex                        |
+| `:Lfr v -f b bar` | same as above with binary formatting                                    |
+| `:Lthread select 1`| select thread 1 as default thread for subsequent commands              |
+| `:Lbt all`         | thread backtrack all                                                   |
+| `:Lregister read`  | show the general purpose registers for current thread                  |
+| `:Lregister write rax 123`  | write `123` into rax                                          |
+| `:Ldisassemble --name main` | disassemble any functions named `main`                        |
+| `:Ldisassemble --line` | disassemble current source line for current frame                  |
 
 
-[gdb to lldb map](https://lldb.llvm.org/use/map.html)
+
+For a complete list of commands, see [gdb to lldb map](https://lldb.llvm.org/use/map.html)
 
 
 Customization
@@ -71,20 +87,21 @@ Customization
 
 ### Global options
 
-To set a custom path for `lldb`, add the following to `vimrc`:
 
 ```vim
-" add path to lldb
+" add custom path to lldb
 let g:lldb_path="/absolute/path/to/lldb"
 ```
 
-Enable/disable plugin:
-
 ```vim
-" enable lldb, set to 0 to disable
-let g:enable_lldb = 1
+" enable lldb, default is 1 {enable}, 0 {disable}
+let g:lldb_enable = 1
 ```
 
+```vim
+" set lldb to async, default is 1 {async}, 0 {sync}
+let g:lldb_async = 1
+```
 
 
 Verifying Python Support
@@ -127,15 +144,12 @@ See **Customization** for specifying lldb path in `vimrc`.
 
 ### @TODOs
 
-* add customization options
+* fix bug with deleted panes/buffers. Need to check before appending.
+* add more customization options
 * move style settings to separate data structure(s) and centralize
   * customizable panes
     * dis view: customize number of instructions to disassemble
 * shorter commands can be ambiguous, e.g. Lb 89
 * fix arg separations for variadics, e.g. Lbreakpoint 83
-* clean up output in panes
-* allow custom theming and remove hard-coded styles
-* handle strings as non-bytes for Python3
-* better instructions for compiling Vim/Python/LLDB to work in harmony
 * check for vim/lldb python versions match before importing lldb
 * Look into term-debug and potential feature parity with gdb

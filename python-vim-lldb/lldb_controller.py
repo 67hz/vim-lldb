@@ -80,7 +80,13 @@ class LLDBController(object):
 
         self.dbg = lldb.SBDebugger.Create()
         # during step/continue do not return from function until process stops
-        self.dbg.SetAsync(False)
+        # async is enabled by default, but overridden in vimrc g:lldb_enable_async
+        vimrc_lldb_async = vim.eval('g:lldb_async')
+        if (vimrc_lldb_async == 0):
+            self.dbg.SetAsync(False)
+        else:
+            self.dbg.SetAsync(True)
+
         self.commandInterpreter = self.dbg.GetCommandInterpreter()
 
         self.ui = UI()

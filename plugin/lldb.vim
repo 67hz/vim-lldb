@@ -16,17 +16,21 @@ elseif (has('python'))
   let s:lldb_python_version = ""
 endif
 
-if (exists("g:loaded_lldb") || (exists("g:enable_lldb") && g:enable_lldb == 0) || v:version < 800 || &cp)
+if (exists("g:loaded_lldb") || (exists("g:lldb_enable") && g:lldb_enable == 0) || v:version < 800 || &cp)
   "echo("DEBUG: LLDB disabled")
   finish
 endif
 let g:loaded_lldb = 1
 
 
-" allow vimrc to set path to lldb
+" allow vimrc to set some custom options
 let g:lldb_custom_path = ""
+let g:lldb_async = 1 " async by default
 if (exists("g:lldb_path"))
   let g:lldb_custom_path = g:lldb_path
+endif
+if (exists("g:lldb_enable_async") && g:lldb_enable_async == 0)
+  let g:lldb_async = 0
 endif
 
 
