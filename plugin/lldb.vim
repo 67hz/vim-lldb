@@ -38,6 +38,7 @@ if (exists("g:lldb_enable_async") && g:lldb_enable_async == 0)
 endif
 
 
+
 let s:script_dir = resolve(expand("<sfile>:p:h"))
 function! s:FindPythonScriptDir()
   let base_dir = fnamemodify(s:script_dir, ':h')
