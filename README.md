@@ -3,7 +3,7 @@ vim-lldb
 
 ### LLDB debugging in Vim
 
-This version of vim-lldb supports Python3. This was forked from the LLVM tools vim-lldb plugin built for Python. It is currently under development so there will be bugs. If you see something, say something. If you are running Python2, you will have better support from the original for now. There is a @TODO task for backward-compatibility, but it is lower on the list.
+This version of vim-lldb supports Python3. This was forked from the LLVM tools vim-lldb plugin built for Python2. It is currently under active development. If you see something, say something. If you are running Python2, you will have better support from the original for now. There is a @TODO task for backward-compatibility, but it is lower on the list.
 
 
 Installation
