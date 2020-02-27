@@ -3,7 +3,7 @@ vim-lldb
 
 ### LLDB debugging in Vim
 
-This version of vim-lldb supports Python2 and Python3. This was forked from LLVM tools which only supports Python2. It is currently under development so there will be bugs. If you see something, say something.
+This version of vim-lldb supports Python3. This was forked from the LLVM tools vim-lldb plugin built for Python. It is currently under development so there will be bugs. If you see something, say something. If you are running Python2, you will have better support from the original for now. There is a @TODO task for backward-compatibility, but it is lower on the list.
 
 
 Installation
@@ -150,18 +150,19 @@ See **Customization** for specifying lldb path in `vimrc`.
 
 ### @TODOs
 
-* create format for config file to define debug pane layout
-    * can currently set with lldb_default_panes but no layouts available yet
-          ```vim
-          let g:lldb_default_panes=['breakpoints', 'locals']
-          ```
+* Create format for config file to define debug pane layout
+    * ~~set with lldb_default_panes but no layouts available yet~~ (not yet implemented)
 
-* fix bug with deleted panes/buffers. Need to check before appending.
-* add more customization options
-* move style settings to separate data structure(s) and centralize
+    ```vim
+      let g:lldb_default_panes=['breakpoints', 'locals']
+    ```
+
+* Fix bug with deleted panes/buffers.
+* More theming options: centralized in separate data structure(s)
   * customizable panes
-    * dis view: customize number of instructions to disassemble
-* shorter commands can be ambiguous, e.g. Lb 89
-* fix arg separations for variadics, e.g. Lbreakpoint 83
-* check for vim/lldb python versions match before importing lldb
-* Look into term-debug and potential feature parity with gdb
+  * dis view: customize number of instructions to disassemble
+* Shorter commands can be ambiguous, e.g. Lb 89
+* Fix arg separations for variadics, e.g. Lbreakpoint 83
+* Check for vim/lldb python versions match before importing lldb.
+  * currently, a SEG fault will occur if LLDB is found on the system, but the PYthon version doesn't match what Vim was compiled against
+* reach feature-parity with gdb and term-debug
