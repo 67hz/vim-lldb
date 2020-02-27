@@ -9,7 +9,7 @@ import sys
 def import_lldb():
     """ Find and import the lldb modules. This function tries to find the lldb module by:
        1. "import lldb" => in case the Vim's python installation is aware of lldb. If that fails,
-       2. "g:lldb_path" => check if lldb_path is set in vimrc, if so, update and use full path as `lldb` below
+       2. "s:lldb_path" => check if lldb_path is set in vimrc, if so, update and use full path as `lldb` below
        3. "lldb -P" => exec the lldb executable pointed to by the LLDB environment variable (or if unset, the first lldb on PATH") with the -P flag to determine the PYTHONPATH to set. If the lldb executable returns a valid
            path, it is added to sys.path and the import is attempted again. If that fails,
        4. On Mac OS X the default Xcode 4.5 installation path.
@@ -31,7 +31,7 @@ def import_lldb():
         lldb_executable = os.environ['LLDB']
 
     # vimrc overrides environ ${LLDB}
-    vimrc_lldb_path = vim.eval('g:lldb_custom_path')
+    vimrc_lldb_path = vim.eval('s:lldb_custom_path')
     if vimrc_lldb_path != "":
         lldb_executable = vimrc_lldb_path
 

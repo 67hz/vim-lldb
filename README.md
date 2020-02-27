@@ -108,6 +108,8 @@ let g:lldb_async = 1
 ```
 
 
+
+
 Verifying Python Support
 ------------------------
 
@@ -147,6 +149,12 @@ See **Customization** for specifying lldb path in `vimrc`.
 
 
 ### @TODOs
+
+* create format for config file to define debug pane layout
+    * can currently set with lldb_default_panes but no layouts available yet
+          ```vim
+          let g:lldb_default_panes=['breakpoints', 'locals']
+          ```
 
 * fix bug with deleted panes/buffers. Need to check before appending.
 * add more customization options

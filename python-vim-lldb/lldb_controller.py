@@ -81,7 +81,7 @@ class LLDBController(object):
         self.dbg = lldb.SBDebugger.Create()
         # during step/continue do not return from function until process stops
         # async is enabled by default, but overridden in vimrc g:lldb_enable_async
-        vimrc_lldb_async = vim.eval('g:lldb_async')
+        vimrc_lldb_async = vim.eval('s:lldb_async')
         if (vimrc_lldb_async == 0):
             self.dbg.SetAsync(False)
         else:
@@ -412,16 +412,9 @@ def returnCompleteCommand(a, l, p):
 def returnCompleteWindow(a, l, p):
     """ Returns a "\n"-separated string with possible completion results
         for commands that expect a window name parameter (like hide/show).
-        FIXME: connect to ctrl.ui instead of hardcoding the list here
     """
     separator = "\n"
-    results = [
-        'breakpoints',
-        'backtrace',
-        'disassembly',
-        'locals',
-        'threads',
-        'registers']
+    results = ul.defaultPanes
     vim.command('return "%s%s"' % (separator.join(results), separator))
 
 global ctrl
