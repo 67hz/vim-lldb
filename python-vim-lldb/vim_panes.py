@@ -377,7 +377,7 @@ class VimPane(object):
         self.prepare()
 
         msg = escape_ansi(msg.encode("utf-8", "replace"))
-        msg = str(msg.decode("utf-8").split('\n'))
+        msg = str(msg.decode("utf-8")).split('\n')
 
         try:
             self.buffer.append(msg)
