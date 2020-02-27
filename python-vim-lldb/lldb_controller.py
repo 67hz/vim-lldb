@@ -10,6 +10,7 @@ import re
 import sys
 import lldb
 import vim
+from utility import *
 from vim_ui import UI
 
 # =================================================
@@ -338,7 +339,8 @@ class LLDBController(object):
         if success:
             self.ui.update(self.target, "", self, goto_file)
             if len(output) > 0 and print_on_success:
-                print(output)
+                output = escape_ansi(output.encode("utf-8", "replace"))
+                print(output.decode("utf-8"))
         else:
             sys.stderr.write(output)
 

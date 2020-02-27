@@ -80,6 +80,7 @@ Example commands:
 | `:Lregister write rax 123`  | write `123` into rax                                          |
 | `:Ldisassemble --name main` | disassemble any functions named `main`                        |
 | `:Ldisassemble --line` | disassemble current source line for current frame                  |
+| `:Ldisassemble --mixed` | disassemble with mixed mode                                       |
 
 
 
