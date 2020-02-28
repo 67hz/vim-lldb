@@ -108,6 +108,13 @@ let g:lldb_enable = 1
 let g:lldb_async = 1
 ```
 
+```vim
+" set lldb console output color
+:hi lldb_output ctermfg=green ctermbg=NONE guifg=green guibg=NONE
+" set breakpoint color
+:hi lldb_breakpoint ctermfg=white ctermbg=DarkGray guifg=white guibg=DarkGray
+```
+
 
 
 

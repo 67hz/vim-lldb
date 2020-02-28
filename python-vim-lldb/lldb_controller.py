@@ -328,8 +328,6 @@ class LLDBController(object):
     # @TODO check if ci.CommandExists(command) before exec
     # may need this check in the future if auto-generating commands
     # currently they are expicitly whitelisted in lldb.vim so we are ok
-    # @TODO create highlight group for output messages to use for disassembly view
-    # need to regex in mixed mode and colorize the source code
     def doCommand(
             self,
             command,
@@ -342,8 +340,6 @@ class LLDBController(object):
             self.ui.update(self.target, "", self, goto_file)
             if len(output) > 0 and print_on_success:
                 output = escape_ansi(output.encode("utf-8", "replace"))
-                # print(output.decode("utf-8"))
-                # @TODO encode/decode is probably overkill now that we are using vim echo. need to clean up print statements across the plugin
                 vim.command('echohl lldb_output | echo "' + str(output.decode("utf-8"))  + '" | echohl None')
         else:
             sys.stderr.write(output)

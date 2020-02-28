@@ -43,24 +43,28 @@ if (exists("g:lldb_enable_async") && g:lldb_enable_async == 0)
   let s:lldb_async = 0
 endif
 
-if !hlexists("lldb_output")
-  :hi lldb_output ctermfg=NONE ctermbg=NONE guifg=NONE guibg=NONE 
-endif
-if !hlexists("lldb_breakpoint")
-  :hi lldb_breakpoint ctermfg=NONE ctermbg=NONE guifg=NONE guibg=NONE 
-endif
-if !hlexists("lldb_pc_active")
-  :hi lldb_pc_active ctermfg=White ctermbg=Blue guifg=White guibg=Blue
-endif
-if !hlexists("lldb_pc_inactive")
-  :hi lldb_pc_inactive ctermfg=NONE ctermbg=NONE guifg=NONE guibg=NONE 
-endif
+function! s:Highlight()
+  if !hlexists("lldb_output")
+    :hi lldb_output ctermfg=NONE ctermbg=NONE guifg=NONE guibg=NONE 
+  endif
+  if !hlexists("lldb_breakpoint")
+    :hi lldb_breakpoint ctermfg=NONE ctermbg=NONE guifg=NONE guibg=NONE 
+  endif
+  if !hlexists("lldb_pc_active")
+    :hi lldb_pc_active ctermfg=White ctermbg=Blue guifg=White guibg=Blue
+  endif
+  if !hlexists("lldb_pc_inactive")
+    :hi lldb_pc_inactive ctermfg=NONE ctermbg=LightGray guifg=NONE guibg=LightGray
+  endif
+  if !hlexists("lldb_changed")
+    :hi lldb_changed ctermfg=DarkGreen ctermbg=White guifg=DarkGreen guibg=White
+  endif
+  if !hlexists("lldb_selected")
+    :hi lldb_selected ctermfg=LightYellow ctermbg=DarkGray guifg=LightYellow guibg=DarkGray
+  endif
+endfunction
 
-" augroup VimLLDB
-"   " au BufRead * call s:BufRead()
-"   " au BufUnload * call s:BufUnloaded()
-"   au OptionSet background call s:Highlight(0, v:option_old, v:option_new)
-" augroup END
+
 
 let s:script_dir = resolve(expand("<sfile>:p:h"))
 function! s:FindPythonScriptDir()
@@ -234,6 +238,16 @@ function! s:CursorWORD(term)
   return empty(a:term) ?  substitute(expand('<cWORD>'), '^\A*\(.\{-}\)\A*$', '\1', '') : a:term 
 endfunction
 
+augroup VimLLDB
+  autocmd!
+  au ColorScheme * call s:Highlight()
+augroup END
+
+
 call s:InitLldbPlugin()
+
+call s:Highlight()
+
+
 let &cpo = s:keepcpo
 unlet s:keepcpo
