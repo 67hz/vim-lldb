@@ -65,8 +65,8 @@ Example commands:
 | `:Lrun`           | run                                                                     |
 | `:Lstep`          | source level single step in current thread                              |
 | `:Lnext`          | source level single step over in current thread                         |
-| `:Lsi`            | instruction level single step in current thread                         |
-| `:Lni`            | instruction level single step-over in current thread                    |
+| `:Lthread step-in` | instruction level single step in current thread                         |
+| `:Lthread step-over` | instruction level single step-over in current thread                    |
 | `Lcontinue`       | Continue execution of all threads in the current process.               |
 | `:Lfinish`        | step out of currently selected frame                                    |
 | `:Lthread return <RETURN EXPRESSION>`| return immediately from currently selected frame with optional return value |
