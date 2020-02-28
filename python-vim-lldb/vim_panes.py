@@ -226,6 +226,7 @@ class PaneLayout(object):
 
 
 # @TODO add external customization
+# Consider reusing existing Vim standards: Error, Normal, ...
 # should read values from vimrc if set
 class VimPane(object):
     """ A generic base class for a pane that displays stuff """

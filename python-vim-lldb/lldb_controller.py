@@ -344,7 +344,7 @@ class LLDBController(object):
                 output = escape_ansi(output.encode("utf-8", "replace"))
                 # print(output.decode("utf-8"))
                 # @TODO encode/decode is probably overkill now that we are using vim echo. need to clean up print statements across the plugin
-                vim.command('echohl LLDBSourceCodeNormal | echo "' + str(output.decode("utf-8"))  + '" | echohl None')
+                vim.command('echohl lldb_output | echo "' + str(output.decode("utf-8"))  + '" | echohl None')
         else:
             sys.stderr.write(output)
 

@@ -7,7 +7,7 @@ let s:is_win = has('win32') || has('win64')
 " @TODO check from python2 and python3
 " pyx not supported < vim8.2.0 so will need to create a pyx shim 
 if !has('pythonx')
-  call confirm('ERROR: This Vim installation does not have python support. lldb.vim will not work.')
+  call confirm('ERROR: This Vim installation does not have python support. lldb debugging is disabled.')
   finish
 elseif (has('python3'))
   " prefer python3 to python2
@@ -16,12 +16,18 @@ elseif (has('python'))
   let s:lldb_python_version = ""
 endif
 
-if (exists("g:loaded_lldb") || (exists("g:lldb_enable") && g:lldb_enable == 0) || v:version < 800 || &cp)
-  "echo("DEBUG: LLDB disabled")
+if(v:version < 802)
+  call confirm('ERROR: lldb requires vim > v8.2.0. lldb debugging is disabled.')
+  finish
+endif 
+
+if (exists("g:loaded_lldb") || (exists("g:lldb_enable") && g:lldb_enable == 0))
   finish
 endif
 let g:loaded_lldb = 1
 
+let s:keepcpo = &cpo
+set cpo&vim
 
 " read in custom options from vimrc
 let s:lldb_custom_path = ""
@@ -37,7 +43,24 @@ if (exists("g:lldb_enable_async") && g:lldb_enable_async == 0)
   let s:lldb_async = 0
 endif
 
+if !hlexists("lldb_output")
+  :hi lldb_output ctermfg=NONE ctermbg=NONE guifg=NONE guibg=NONE 
+endif
+if !hlexists("lldb_breakpoint")
+  :hi lldb_breakpoint ctermfg=NONE ctermbg=NONE guifg=NONE guibg=NONE 
+endif
+if !hlexists("lldb_pc_active")
+  :hi lldb_pc_active ctermfg=White ctermbg=Blue guifg=White guibg=Blue
+endif
+if !hlexists("lldb_pc_inactive")
+  :hi lldb_pc_inactive ctermfg=NONE ctermbg=NONE guifg=NONE guibg=NONE 
+endif
 
+" augroup VimLLDB
+"   " au BufRead * call s:BufRead()
+"   " au BufUnload * call s:BufUnloaded()
+"   au OptionSet background call s:Highlight(0, v:option_old, v:option_new)
+" augroup END
 
 let s:script_dir = resolve(expand("<sfile>:p:h"))
 function! s:FindPythonScriptDir()
@@ -136,8 +159,6 @@ function! s:InitLldbPlugin()
   " Continue
   command -complete=custom,s:CompleteCommand -nargs=* Lcontinue          pyx ctrl.doContinue()
 
-
-
   " Thread-Stepping (no autocompletion)
   command -nargs=0 Lstepinst                                             pyx ctrl.doStep(StepType.INSTRUCTION)
   command -nargs=0 Lstepinstover                                         pyx ctrl.doStep(StepType.INSTRUCTION_OVER)
@@ -148,8 +169,8 @@ function! s:InitLldbPlugin()
 
 
   " Bind/Unbind
-  command! -bar -bang Lunbind                call s:UnbindCursorFromLLDB()
-  command! -bar -bang Lbind                call s:BindCursorToLLDB()
+  command -bar -bang Lunbind                call s:UnbindCursorFromLLDB()
+  command -bar -bang Lbind                call s:BindCursorToLLDB()
 
   call s:ServiceLLDBEventQueue()
 endfunction
@@ -214,3 +235,5 @@ function! s:CursorWORD(term)
 endfunction
 
 call s:InitLldbPlugin()
+let &cpo = s:keepcpo
+unlet s:keepcpo
