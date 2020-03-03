@@ -16,8 +16,8 @@ elseif (has('python'))
   let s:lldb_python_version = ""
 endif
 
-if(v:version < 802)
-  call confirm('ERROR: lldb requires vim > v8.2.0. lldb debugging is disabled.')
+if(v:version < 801)
+  call confirm('ERROR: lldb requires vim > v8.1.0. lldb debugging is disabled.')
   finish
 endif 
 
