@@ -4,8 +4,6 @@
 " @TODO add/verify win support
 let s:is_win = has('win32') || has('win64')
 
-" @TODO check from python2 and python3
-" pyx not supported < vim8.2.0 so will need to create a pyx shim 
 if !has('pythonx')
   call confirm('ERROR: This Vim installation does not have python support. lldb debugging is disabled.')
   finish
@@ -33,9 +31,11 @@ set cpo&vim
 let s:lldb_custom_path = ""
 let s:lldb_async = 1 " async by default
 let s:default_panes = []
+
 if (exists("g:lldb_path"))
   let s:lldb_custom_path = g:lldb_path
 endif
+
 if (exists("g:lldb_default_panes"))
   let s:lldb_default_panes = g:lldb_default_panes
 endif

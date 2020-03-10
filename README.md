@@ -1,10 +1,7 @@
 vim-lldb
 ========
 
-### LLDB debugging in Vim
-
-This version of vim-lldb supports Python3. This was forked from the LLVM tools vim-lldb plugin built for Python2. It is currently under active development. If you see something, say something. If you are running Python2, you will have better support from the original for now. There is a @TODO task for backward-compatibility, but it is lower on the list.
-
+LLDB debugging in Vim for Python2 and Python3.
 
 Installation
 ------------
@@ -116,8 +113,6 @@ let g:lldb_async = 1
 ```
 
 
-
-
 Verifying Python Support
 ------------------------
 
@@ -156,21 +151,3 @@ If python versions are mismatched, either recompile Vim to match the same versio
 See **Customization** for specifying lldb path in `vimrc`.
 
 
-### @TODOs
-
-* Create format for config file to define debug pane layout
-    * ~~set with lldb_default_panes but no layouts available yet~~ (not yet implemented)
-
-    ```vim
-      let g:lldb_default_panes=['breakpoints', 'locals']
-    ```
-
-* Fix bug with deleted panes/buffers.
-* More theming options: centralized in separate data structure(s)
-  * customizable panes
-  * dis view: customize number of instructions to disassemble
-* Shorter commands can be ambiguous, e.g. Lb 89
-* Fix arg separations for variadics, e.g. Lbreakpoint 83
-* Check for vim/lldb python versions match before importing lldb.
-  * currently, a SEG fault will occur if LLDB is found on the system, but the PYthon version doesn't match what Vim was compiled against
-* reach feature-parity with gdb and term-debug
