@@ -25,8 +25,6 @@ class UI:
         """ Declare UI state variables """
 
         # Default panes to display
-        # @TODO allow custom list from vimrc
-        # vimrc_default_panes = vim.eval('s:lldb_default_panes')
         self.defaultPanes = [
             'breakpoints',
             'backtrace',

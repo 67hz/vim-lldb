@@ -1,8 +1,6 @@
 
 " Vim script glue code for LLDB integration
 "
-" @TODO add/verify win support
-let s:is_win = has('win32') || has('win64')
 
 if !has('pythonx')
   call confirm('ERROR: This Vim installation does not have python support. lldb debugging is disabled.')
@@ -84,7 +82,6 @@ function! s:InitLldbPlugin()
     return
   endif
 
-  " @TODO DEBUG only - remove before prod
   let g:vim_lldb_pydir = vim_lldb_pydir
 
   " Key-Bindings

@@ -225,9 +225,6 @@ class PaneLayout(object):
             self.panes[name].update(target, controller)
 
 
-# @TODO add external customization
-# Consider reusing existing Vim standards: Error, Normal, ...
-# should read values from vimrc if set
 class VimPane(object):
     """ A generic base class for a pane that displays stuff """
     CHANGED_VALUE_HIGHLIGHT_NAME_GUI = 'ColorColumn'
@@ -302,8 +299,6 @@ class VimPane(object):
         self.on_create()
         goto_previous_window()
 
-    # @TODO fix checking for window exists before updating
-    # bug: delete breakpoint buffer, add breakpoint
     def update(self, target, controller):
         """ updates buffer contents """
         self.target = target
@@ -315,7 +310,6 @@ class VimPane(object):
 
         # Select pane
         goto_window(bufwinnr(self.name))
-        # print("DEBUG: buffer found at #: %s"% bufwinnr(self.name))
 
         # Clean and update content, and apply any highlights.
         self.clean()
@@ -460,8 +454,6 @@ class FrameKeyValuePane(VimPane):
         # Read the frame variables
         vals = self.get_frame_content(frame)
         for (key, value) in vals:
-            # print("DEBUG: key: %s"% key)
-            # print("DEBUG: value: %s"% value)
             lineNum += 1
             if len(frameOldValues) == 0 or (
                     key in frameOldValues and frameOldValues[key] == value):

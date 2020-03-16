@@ -72,7 +72,6 @@ class LLDBController(object):
     eventDelayLaunch = 1
     eventDelayContinue = 1
 
-    # @TODO define customizable options: async
     def __init__(self):
         """ Creates the LLDB SBDebugger object and initializes the UI class. """
         self.target = None
@@ -325,7 +324,7 @@ class LLDBController(object):
         return (result.Succeeded(), result.GetOutput()
                 if result.Succeeded() else result.GetError())
 
-    # @TODO check if ci.CommandExists(command) before exec
+    # check if ci.CommandExists(command) before exec
     # may need this check in the future if auto-generating commands
     # currently they are expicitly whitelisted in lldb.vim so we are ok
     def doCommand(
