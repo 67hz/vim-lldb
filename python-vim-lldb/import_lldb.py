@@ -50,7 +50,7 @@ def import_lldb():
             pass
         else:
             sys.path.append(lldb_minus_p_path)
-            print("DEBUG: importing from sys.path as lldb: %s"% lldb_minus_p_path)
+            # print("DEBUG: importing from sys.path as lldb: %s"% lldb_minus_p_path)
             import lldb
             return True
     except CalledProcessError:
