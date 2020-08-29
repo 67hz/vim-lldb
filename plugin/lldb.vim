@@ -26,19 +26,15 @@ let s:keepcpo = &cpo
 set cpo&vim
 
 " read in custom options from vimrc
-let s:lldb_custom_path = ""
-let s:lldb_async = 1 " async by default
-let s:default_panes = []
+let g:lldb_custom_path = ""
+let g:lldb_async = 1 " async by default
 
 if (exists("g:lldb_path"))
-  let s:lldb_custom_path = g:lldb_path
+  let g:lldb_custom_path = g:lldb_path
 endif
 
-if (exists("g:lldb_default_panes"))
-  let s:lldb_default_panes = g:lldb_default_panes
-endif
 if (exists("g:lldb_enable_async") && g:lldb_enable_async == 0)
-  let s:lldb_async = 0
+  let g:lldb_async = 0
 endif
 
 function! s:Highlight()
@@ -70,7 +66,8 @@ function! s:FindPythonScriptDir()
   return base_dir . "/python-vim-lldb"
 endfunction
 
-function! s:InitLldbPlugin()
+
+function! g:InitLldbPlugin()
 
   " Setup the python interpreter path
   let vim_lldb_pydir = s:FindPythonScriptDir()
@@ -78,7 +75,7 @@ function! s:InitLldbPlugin()
   " if import fails, lldb_disabled is set
   execute 'pyxfile ' . vim_lldb_pydir . '/plugin.py'
 
-  if(exists("s:lldb_disabled"))
+  if(exists("g:lldb_disabled"))
     return
   endif
 
@@ -100,7 +97,6 @@ function! s:InitLldbPlugin()
   " FIXME: this list of commands, at least partially should be auto-generated
   "
   "
-
   " Window show/hide commands
   command -complete=custom,s:CompleteWindow -nargs=1 Lhide               pyx ctrl.doHide('<args>')
   command -complete=custom,s:CompleteWindow -nargs=0 Lshow               pyx ctrl.doShow('<args>')
@@ -241,7 +237,7 @@ augroup VimLLDB
 augroup END
 
 
-call s:InitLldbPlugin()
+call g:InitLldbPlugin()
 
 call s:Highlight()
 

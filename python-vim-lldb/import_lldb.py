@@ -30,12 +30,13 @@ def import_lldb():
     if 'LLDB' in os.environ and os.path.exists(os.environ['LLDB']):
         lldb_executable = os.environ['LLDB']
 
-    # vimrc overrides environ ${LLDB}
-    vimrc_lldb_path = vim.eval('s:lldb_custom_path')
+    # vimrc overrides environ $LLDB
+    vimrc_lldb_path = vim.eval('g:lldb_custom_path')
     if vimrc_lldb_path != "":
         lldb_executable = vimrc_lldb_path
 
     # Try using builtin module location support ('lldb -P')
+
     from subprocess import check_output, CalledProcessError
     try:
         with open(os.devnull, 'w') as fnull:
@@ -45,12 +46,13 @@ def import_lldb():
                 shell=True,
                 stderr=fnull).strip().decode("utf-8")
 
+
         if not os.path.exists(lldb_minus_p_path):
             # lldb -P returned invalid path, probably too old
             pass
         else:
-            sys.path.append(lldb_minus_p_path)
             # print("DEBUG: importing from sys.path as lldb: %s"% lldb_minus_p_path)
+            sys.path.append(lldb_minus_p_path + ' ')
             import lldb
             return True
     except CalledProcessError:
@@ -76,4 +78,4 @@ def import_lldb():
     return False
 
 if not import_lldb():
-    vim.command("let s:lldb_disabled=1")
+    vim.command("let g:lldb_disabled=1")
