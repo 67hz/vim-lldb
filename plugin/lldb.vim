@@ -2,8 +2,17 @@
 " Vim script glue code for LLDB integration
 "
 
+let s:keepcpo = &cpo
+set cpo&vim
+
+function! s:restore_cpo()
+  let &cpo = s:keepcpo
+  unlet s:keepcpo
+endfunction
+
 if !has('pythonx')
   call confirm('ERROR: This Vim installation does not have python support. lldb debugging is disabled.')
+  call s:restore_cpo()
   finish
 elseif (has('python3'))
   " prefer Python 3 over 2
@@ -14,16 +23,17 @@ endif
 
 if(v:version < 801)
   call confirm('ERROR: lldb requires vim > v8.1.0. lldb debugging is disabled.')
+  call s:restore_cpo()
   finish
 endif 
 
-if (exists("g:loaded_lldb") || (exists("g:lldb_enable") && g:lldb_enable == 0))
+if (exists("g:lldb_enable") && g:lldb_enable == 0)
+  call s:restore_cpo()
   finish
 endif
 let g:loaded_lldb = 1
 
-let s:keepcpo = &cpo
-set cpo&vim
+
 
 " read in custom options from vimrc
 let g:lldb_custom_path = ""
@@ -66,20 +76,21 @@ function! s:FindPythonScriptDir()
   return base_dir . "/python-vim-lldb"
 endfunction
 
+" Setup the python interpreter path
+let vim_lldb_pydir = s:FindPythonScriptDir()
+execute 'pyx import sys; sys.path.append("' . vim_lldb_pydir . '")'
+execute 'pyxfile ' . vim_lldb_pydir . '/plugin.py'
+
+" if import fails, lldb_disabled is set. remove  plugin and restore env.
+if(exists("g:lldb_disabled") && g:lldb_disabled == 1)
+    call s:restore_cpo()
+    finish
+endif
+
+let g:vim_lldb_pydir = vim_lldb_pydir
+
 
 function! g:InitLldbPlugin()
-
-  " Setup the python interpreter path
-  let vim_lldb_pydir = s:FindPythonScriptDir()
-  execute 'pyx import sys; sys.path.append("' . vim_lldb_pydir . '")'
-  " if import fails, lldb_disabled is set
-  execute 'pyxfile ' . vim_lldb_pydir . '/plugin.py'
-
-  if(exists("g:lldb_disabled"))
-    return
-  endif
-
-  let g:vim_lldb_pydir = vim_lldb_pydir
 
   " Key-Bindings
   " FIXME: choose sensible keybindings for:
@@ -238,9 +249,7 @@ augroup END
 
 
 call g:InitLldbPlugin()
-
 call s:Highlight()
 
 
-let &cpo = s:keepcpo
-unlet s:keepcpo
+call s:restore_cpo()
