@@ -4,8 +4,6 @@ import os
 import sys
 import lldb
 import socket
-from multiprocessing import Process, Value
-
 import lldb_path
 
 lldb_path.update_sys_path()
@@ -18,7 +16,6 @@ try:
 except ImportError:
     print("Unable to load vim-lldb. Check lldb is available on path with `lldb -P` and codesigned. See README for setup help.")
     pass
-
 
 HOST = ''
 PORT = 65400
@@ -54,18 +51,27 @@ class LLDB(object):
         q.put(x + 1243)
         q.put("debugger: %s"% dbg)
 
+    def sendToVim(self, method, args):
+        #print('\033]51;["call","Tapi_%s", ["%s"]]\007' % (method, str(args)))
+        print('\033]51;["call","Tapi_%s", ["%s"]]\007' % (method, 'placeholder'))
 
     def getCommandResult(self, data):
-        """ run cmd in ci and returns (success, output) """
         res = lldb.SBCommandReturnObject()
         cmd = data.replace('\n', ' ').replace('\r', '')
         self.ci.HandleCommand(cmd, res)
-        log.write('(lldb) res: %s'% str(res))
+
+        log.write('(lldb) %s'% str(res))
         return res
 
 
+"""
+* add tab-completion
+* add 'clear'
+* comm -> vim using Tapi
 
-def startIO():
+"""
+
+def startIOLoop():
     dbg = LLDB()
     dbg.start()
     log.write('IO Server started')
@@ -81,11 +87,10 @@ def startIO():
         else:
             res = res.GetError()
 
-        if len(res) < 1:
-            res = 'NOOP'
+        print('(lldb res) %s'% res)
+        dbg.sendToVim("Test", res)
 
-        log.write('res: %s'% res)
-        print('(lldb) res: %s'% str(res))
+
 
 
 
@@ -119,7 +124,7 @@ def startServer():
                     res = 'NOOP'
 
                 log.write('res: %s'% res)
-                print('(lldb) res: %s'% str(res))
+                print('(lldb out) res: %s'% str(res))
                 conn.sendall(res.encode())
 
         s.close()
@@ -127,5 +132,5 @@ def startServer():
 
 
 #startServer()
-startIO()
+startIOLoop()
 

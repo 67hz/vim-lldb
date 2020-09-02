@@ -32,14 +32,6 @@ if (exists("g:lldb_enable") && g:lldb_enable == 0 || (exists("s:lldb_loaded")) )
   finish
 endif
 
-" read in custom options from vimrc
-let g:lldb_custom_path = ""
-
-if (exists("g:lldb_path"))
-  let g:lldb_custom_path = g:lldb_path
-endif
-
-
 function! s:Highlight()
   if !hlexists("lldb_output")
     :hi lldb_output ctermfg=NONE ctermbg=NONE guifg=NONE guibg=NONE 
@@ -61,44 +53,19 @@ function! s:Highlight()
   endif
 endfunction
 
-
+" Setup the python interpreter path
 let s:script_dir = resolve(expand("<sfile>:p:h"))
 function! s:FindPythonScriptDir()
   let base_dir = fnamemodify(s:script_dir, ':h')
   return base_dir . "/python-vim-lldb"
 endfunction
 
-" Setup the python interpreter path
-let vim_lldb_pydir = s:FindPythonScriptDir()
-execute 'pyx import sys; sys.path.append("' . vim_lldb_pydir . '")'
+let g:vim_lldb_pydir = s:FindPythonScriptDir()
+"execute 'pyx import sys; sys.path.append("' . vim_lldb_pydir . '")'
 "execute 'pyxfile ' . vim_lldb_pydir . '/plugin.py'
 
-
-" XXX test for thread hijack only - remove before PROD
-func g:SBDCreate()
-term
-pyx << EOF
-sdb = lldb.SBDebugger.Create()
-print("Created LLDB %s")
-EOF
-redraw
-endfunc
-
-func g:DBGBG()
-  let cmd = ['python ' . g:vim_lldb_pydir . '/plugin.py']
-  "let cmd = ['bc']
-  let s:dbgjob = job_start(cmd)
-  if job_status(s:dbgjob) != "run"
-    echoerr "Failed to start lldb "
-  else
-    echo "running job"
-    let info = job_info(s:dbgjob)
-    echo "Exitcode = " . info.exitval
-  endif
-endfunc
-
 " if import fails, lldb_disabled is set. remove plugin and restore env.
-if(exists("g:lldb_disabled") && g:lldb_disabled == 1)
+if exists("g:lldb_disabled") && g:lldb_disabled == 1
   call s:restore_cpo()
     finish
 endif
@@ -106,8 +73,7 @@ endif
 " import was successful 
 let s:lldb_loaded = 1
 
-let g:vim_lldb_pydir = vim_lldb_pydir
-
+" set up UI defaults
 let s:vertical = 'vertical'
 
 func! s:StartDebug_prompt()
@@ -121,7 +87,6 @@ func! s:StartDebug_prompt()
   let s:promptbuf = bufnr('')
   call prompt_setprompt(s:promptbuf, 'lldb-client> ')
   set buftype=prompt
-  pyxfile g:vim_lldb_pydir . '/lldb_client.py'
   call prompt_setcallback(s:promptbuf, function('s:PromptCallback'))
   "call prompt_setinterrupt(s:promptbuf, function('s:PromptInterrupt'))
 
@@ -129,17 +94,34 @@ func! s:StartDebug_prompt()
     exe (&columns / 2 - 1) . "wincmd | "
   endif
 
-  let cmd = [g:vim_lldb_pydir . '/lldb_client.py']
-  let s:lldbjob = jobstart(cmd, {
+  "let cmd = ['/bin/sh', ' python /home/darkbox/.vim/pack/mine/opt/vim-lldb/python-vim-lldb/lldb_client.py']
+  let cmd = ['lldb']
+  let s:lldbjob = job_start(cmd, {
         \ 'out_cb': function('s:LldbOutCallback'),
         \ })
 
+  if job_status(s:lldbjob) != "run"
+    echoerr "Failed to start lldb "
+  else
+    echo "running job"
+    let info = job_info(s:lldbjob)
+    echo "Exitcode = " . info.exitval
+  endif
 
+  " mark buffer so not easy to close
+  set modified
+  let s:lldb_channel = job_getchannel(s:lldbjob)
 
+endfunc
+
+func! s:LldbOutCallback(text)
+  echo a:text
+  call ch_log('lldb outcallback: ' . a:text)
 endfunc
 
 func! s:PromptCallback(text)
   call ch_log('prompt callback: ' . a:text)
+  call s:SendCommand(a:text)
 endfunc
 
 
@@ -149,83 +131,31 @@ func! s:StartDebug_term()
 
   " only 1 running instance allowed
   if (exists("s:lldb_term_running"))
-    "return
-  endif
-
-  " real lldb  debugger
-  "let s:ptybuf = term_start('lldb', {
-  "            \ 'term_name': 'debugged program',
-  "            \ 'vertical': s:vertical,
-  "            \ 'out_cb': function('s:LldbOutput'),
-  "            \ 'curwin': 0,
-  "            \ })
-  let s:lldb_term_running=1
-
-  " lldb server
-  let s:commbuf = term_start('python ' . g:vim_lldb_pydir . '/lldb_server.py', {
-       \ 'term_name': 'lldb_server',
-       \ 'vertical': s:vertical,
-       \ 'hidden': 1,
-       \ })
-
-
-  " lldb client - XXX could be a prompt instead
-  let s:ptybuf = term_start('python ' . g:vim_lldb_pydir . '/lldb_client.py', {
-       \ 'term_name': 'lldb_client',
-       \ 'vertical': s:vertical,
-       \ 'hidden': 0,
-       \ })
- 
-  "call s:SendCommand("script lldb.process")
-  "call s:SendCommand("command script import " .  g:vim_lldb_pydir . "/bridge.py")
-endfunc
-
-" pull stdout from lldb output "
-func s:LldbOutput(chan, msg)
-  " XXX hack to prevent user input from being processed, find a better
-  " solution
-  if (len(a:msg) < 2)
     return
   endif
 
-  call ch_log('lldb stdout: ' . a:msg)
-  echo 'lldboutput: ' . a:msg
-  let msgs = split(a:msg, "\r")
-  "let text = s:DecodeMessage(a:msg)
-  "echo 'text: ' . text
+  " lldb server
+  let s:ptybuf = term_start('python ' . g:vim_lldb_pydir . '/lldb_server.py', {
+       \ 'term_name': 'lldb_server',
+       \ 'vertical': s:vertical,
+       \ 'hidden': 0,
+       \ })
 
-endfunc
+  let s:lldb_term_running=1
 
-function s:DecodeMessage(quotedText)
-  "if a:quotedText[0] != '"'
-  "  echoerr 'DecodeMessage(): missing quote in ' . a:quotedText
-  "  return
-  "endif
-  let result = ''
-  let i = 1
-  while a:quotedText[i] && i < len(a:quotedText)
-    result += '#' . i . ':' . a:quotedText . '\n'
-    let i += 1
-  endwhile
-  echo 'result: ' . result
-  return result
 endfunc
 
 function! s:InstallCommands()
   "command -nargs=0 Lldb win_gotoid(s:lldbwin)
   "echo 'win: ' . s:lldbwin
 
-  command -nargs=? Mbreakpoint call s:SetBreakpoint(<q-args>)
-
+  command -nargs=? Lbreakpoint call s:SetBreakpoint(<q-args>)
   command -nargs=0 LStartDebug call s:StartDebug_term()
 
-
-
   " XXX remove all these
-  command LFinish pyx ctrl.doNew('finish', '<f-args>')
-  command -nargs=* Ltarget     pyx ctrl.doTarget('<args>')
-  command -nargs=* Lbreakpoint        pyx ctrl.doNew('breakpoint', '<f-args>')
-
+  "command LFinish pyx ctrl.doNew('finish', '<f-args>')
+  "command -nargs=* Ltarget     pyx ctrl.doTarget('<args>')
+  "command -nargs=* Lbreakpoint        pyx ctrl.doNew('breakpoint', '<f-args>')
 
 endfunction
 
@@ -233,13 +163,21 @@ endfunction
 func s:SetBreakpoint(at)
    let at = empty(a:at) ?
          \ 'set --file ' . fnameescape(expand('%:p')) . ' --line ' . line('.') : a:at
-  call s:SendCommand('breakpoint ' . at)
+  call s:SendCommand('breakpoint ' . at . "\r")
 endfunc
 
 func s:SendCommand(cmd)
   call ch_log('sending to lldb: ' . a:cmd)
   call term_sendkeys(s:ptybuf, a:cmd . "\r")
-  call term_sendkeys(s:ptybuf, a:cmd . "\r")
+endfunc
+
+func! g:Tapi_Test(args, msg)
+  echo 'Tapi_Test' . a:args[0]  . ' ->1: ' . a:args[1] .  ' msg: ' . a:msg[0]
+endfunc
+
+func! g:Tapi_Breakpoint(args, msg)
+  echo 'Tapi_Breakpoint'
+  call ch_log('Tapi_Breakpoint: ' . a:args[0] . a:msg[0])
 endfunc
 
 function! g:InitLldbPlugin()
@@ -336,7 +274,6 @@ function! g:InitLldbPlugin()
 endfunction
 
 
-" @TODO move this and other binding functions to /autoload
 function! s:ServiceLLDBEventQueue()
   " hack: service the LLDB event-queue when the cursor moves
   " FIXME: some threaded solution would be better...but it
@@ -400,7 +337,6 @@ augroup VimLLDB
 augroup END
 
 
-"call g:InitLldbPlugin()
 call s:Highlight()
 call s:InstallCommands()
 call s:StartDebug_term()
@@ -408,3 +344,14 @@ call s:StartDebug_term()
 
 
 call s:restore_cpo()
+
+
+" XXX test for thread hijack only - remove before PROD
+func g:SBDCreate()
+term
+pyx << EOF
+sdb = lldb.SBDebugger.Create()
+print("Created LLDB %s")
+EOF
+redraw
+endfunc
