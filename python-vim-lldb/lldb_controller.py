@@ -10,8 +10,39 @@ import re
 import sys
 import lldb
 import vim
+import socket
+import struct
+from time import sleep
 from utility import *
 from vim_ui import UI
+from multiprocessing import Process, Queue
+
+HOST = ''
+PORT = 65400
+
+
+
+def startClient(LLDB):
+    numTries = 0
+    while numTries < 3:
+        try:
+            s_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s_conn.connect((HOST, PORT))
+            l_onoff = 1
+            l_linger = 0
+            s_conn.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
+                    struct.pack('ii', l_onoff, l_linger))
+            LLDB.isConnected = True
+            print('socket connected')
+            return s_conn
+
+        except OSError as error:
+            print(error)
+            print("Attempt %d of 100"% numTries)
+            sleep(5)
+            numTries += 1
+
+    return -1
 
 
 # =================================================
@@ -59,6 +90,10 @@ class StepType:
     OUT = 5
 
 
+
+
+
+
 class LLDBController(object):
     """ Handles Vim and LLDB events such as commands and lldb events. """
 
@@ -75,22 +110,33 @@ class LLDBController(object):
 
     def __init__(self):
         """ Creates the LLDB SBDebugger object and initializes the UI class. """
-        self.target = None
-        self.process = None
         self.load_dependent_modules = True
 
-        self.dbg = lldb.SBDebugger.Create()
-        # during step/continue do not return from function until process stops
-        # async is enabled by default, but overridden in vimrc g:lldb_enable_async
-        vimrc_lldb_async = vim.eval('g:lldb_async')
-        if (vimrc_lldb_async == 0):
-            self.dbg.SetAsync(False)
-        else:
-            self.dbg.SetAsync(True)
+        self.s_conn = None
+        self.isConnected = False
+        self.dbg = None
+        #self.dbg = lldb.SBDebugger.Create()
 
-        self.commandInterpreter = self.dbg.GetCommandInterpreter()
-
+        # use the created dbg from terminal in vim instead
         self.ui = UI()
+
+    def doNew(self, command, command_args):
+        if self.isConnected is False:
+            print("no client so start one")
+            self.s_conn = startClient(self)
+
+        print("command %s"% command)
+        print("command_args %s"% command_args)
+        print("then send data %s"% str(self.s_conn))
+
+        tx = command + '  ' + command_args
+        self.s_conn.sendall(tx.encode())
+        res = self.s_conn.recv(1024)
+        print("doNew received from server: %s"% str(res))
+
+
+
+
 
     def completeCommand(self, a, l, p):
         """ Returns a list of viable completions for command a with length l and cursor at p  """
@@ -426,3 +472,4 @@ def returnCompleteWindow(a, l, p):
 global ctrl
 
 ctrl = LLDBController()
+

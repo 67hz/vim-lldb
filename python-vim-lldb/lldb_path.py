@@ -1,6 +1,6 @@
 import os
 import sys
-import vim
+#import vim
 
 
 lldb_executable = 'lldb'
@@ -9,13 +9,16 @@ lldb_executable = 'lldb'
 if 'LLDB' in os.environ and os.path.exists(os.environ['LLDB']):
     lldb_executable = os.environ['LLDB']
 
+"""
+Removed to avoid vim module import. Goal is to decouple vim from lldb process.
 # vimrc g:lldb_path overrides above environ variable
 vimrc_lldb_path = vim.eval('g:lldb_custom_path')
 if vimrc_lldb_path != "":
     lldb_executable = vimrc_lldb_path
+    """
 
 # get '{lldb_executable} -P' output path and append to system path
-def get_lldb_path():
+def update_sys_path():
     from subprocess import check_output, CalledProcessError
     try:
         with open(os.devnull, 'w') as fnull:
@@ -29,7 +32,7 @@ def get_lldb_path():
             pass
         else:
             sys.path[0:0] = [lldb_minus_p_path]
-            print(sys.path)
+            #print("DEBUG sys.path: %s"% sys.path)
             return True;
 
     except CalledProcessError:
@@ -37,6 +40,3 @@ def get_lldb_path():
         pass
 
     return False
-
-
-get_lldb_path()
