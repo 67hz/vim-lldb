@@ -1,7 +1,6 @@
 import os
 import sys
 
-
 lldb_executable = 'lldb'
 
 # is LLDB set in environ ?
