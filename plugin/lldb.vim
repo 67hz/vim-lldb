@@ -74,7 +74,7 @@ func! s:StartDebug_prompt()
     new
   endif
 
-  let s:lldbwin = win_getid(winnr())
+  let s:lldbpromptwin = win_getid(winnr())
   let s:promptbuf = bufnr('')
   call prompt_setprompt(s:promptbuf, 'lldb-client> ')
   set buftype=prompt
@@ -130,10 +130,12 @@ func! s:StartDebug_term()
   let s:ptybuf = term_start('python ' . g:vim_lldb_pydir . '/lldb_server.py', {
        \ 'term_name': 'lldb_server',
        \ 'vertical': s:vertical,
+       \ 'term_finish': 'close',
        \ 'hidden': 0,
        \ })
 
   let s:lldb_term_running=1
+  let s:lldbwin = win_getid(winnr())
 
 endfunc
 
@@ -158,8 +160,13 @@ func s:SendCommand(cmd)
   call term_sendkeys(s:ptybuf, a:cmd . "\r")
 endfunc
 
+
 func! g:Tapi_Test(args, msg)
   echo 'Tapi_Test' . a:args[0]  . ' ->1: ' . a:args[1] .  ' msg: ' . a:msg[0]
+endfunc
+
+func! g:Tapi_Error(args, msg)
+  echo 'vim-lldb: ' . a:msg[0]
 endfunc
 
 func! g:Tapi_Breakpoint(args, msg)
