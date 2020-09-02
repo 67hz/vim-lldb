@@ -21,12 +21,9 @@ class Client(object):
                 self.s_conn.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
                         struct.pack('ii', l_onoff, l_linger))
                 self.isConnected = True
-                print('socket connected')
                 return
 
             except OSError as error:
-                print(error)
-                print("Attempt %d of 100"% numTries)
                 sleep(1)
                 numTries += 1
 
@@ -46,13 +43,19 @@ class Client(object):
         " move receive to a select/poll and check if string starts with error: "
         " implement pager on longer data "
         data = self.s_conn.recv(14444)
-        print(data.decode())
+        if data.decode() != 'NOOP':
+            print(data.decode())
+        else:
+            print('\n')
+
 
 
 
 def startClient():
     """ simple client to query lldb server """
     client = Client()
+    if client.isConnected is False:
+        print('Unable to connect to vim-lldb-server')
 
     
     while True:
@@ -66,10 +69,7 @@ def startClient():
             print('closing lldb')
             client.close()
 
-    """
-    for line in sys.stdin:
-        client.sendRequest(line)
-        """
+
 
 startClient()
 

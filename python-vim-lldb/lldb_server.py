@@ -16,8 +16,7 @@ log.write("\n\nnew run\n\n")
 try:
     import lldb
 except ImportError:
-    #vim.command("let g:lldb_disabled=1")
-    print("Unable to load vim/lldb module, vim-lldb is disabled. Check lldb is available on path with `lldb -P` and codesigned or set lldb_path in .vimrc. See README for setup help.")
+    print("Unable to load vim-lldb. Check lldb is available on path with `lldb -P` and codesigned. See README for setup help.")
     pass
 
 
@@ -45,7 +44,6 @@ class LLDB(object):
         #exe = os.path.join(os.getcwd(), 'par')
         #self.dbg.CreateTarget(exe)
         self.frame = "live frame"
-        #q.put("debugger: %s"% dbg)
 
 
     def terminate():
@@ -62,9 +60,33 @@ class LLDB(object):
         res = lldb.SBCommandReturnObject()
         cmd = data.replace('\n', ' ').replace('\r', '')
         self.ci.HandleCommand(cmd, res)
-        #self.ci.HandleCommand('breakpoint set -f main.c -l %d' % 12, res)
         log.write('(lldb) res: %s'% str(res))
         return res
+
+
+
+def startIO():
+    dbg = LLDB()
+    dbg.start()
+    log.write('IO Server started')
+
+    while True:
+        data = input("(lldb) ")
+        if len(data) < 1:
+                continue
+
+        res = dbg.getCommandResult(data)
+        if res.Succeeded():
+            res = res.GetOutput()
+        else:
+            res = res.GetError()
+
+        if len(res) < 1:
+            res = 'NOOP'
+
+        log.write('res: %s'% res)
+        print('(lldb) res: %s'% str(res))
+
 
 
 
@@ -90,18 +112,20 @@ def startServer():
                 res = dbg.getCommandResult(data)
                 if res.Succeeded():
                     res = res.GetOutput()
-                    
                 else:
                     res = res.GetError()
 
+                if len(res) < 1:
+                    res = 'NOOP'
+
+                log.write('res: %s'% res)
+                print('(lldb) res: %s'% str(res))
                 conn.sendall(res.encode())
-                res = ''
-
-
 
         s.close()
 
 
 
-startServer()
+#startServer()
+startIO()
 
