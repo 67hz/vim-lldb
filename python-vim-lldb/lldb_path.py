@@ -1,6 +1,5 @@
 import os
 import sys
-#import vim
 
 
 lldb_executable = 'lldb'
@@ -8,14 +7,6 @@ lldb_executable = 'lldb'
 # is LLDB set in environ ?
 if 'LLDB' in os.environ and os.path.exists(os.environ['LLDB']):
     lldb_executable = os.environ['LLDB']
-
-"""
-Removed to avoid vim module import. Goal is to decouple vim from lldb process.
-# vimrc g:lldb_path overrides above environ variable
-vimrc_lldb_path = vim.eval('g:lldb_custom_path')
-if vimrc_lldb_path != "":
-    lldb_executable = vimrc_lldb_path
-    """
 
 # get '{lldb_executable} -P' output path and append to system path
 def update_sys_path():

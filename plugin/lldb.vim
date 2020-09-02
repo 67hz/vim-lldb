@@ -61,20 +61,11 @@ function! s:FindPythonScriptDir()
 endfunction
 
 let g:vim_lldb_pydir = s:FindPythonScriptDir()
-"execute 'pyx import sys; sys.path.append("' . vim_lldb_pydir . '")'
-"execute 'pyxfile ' . vim_lldb_pydir . '/plugin.py'
 
-" if import fails, lldb_disabled is set. remove plugin and restore env.
-if exists("g:lldb_disabled") && g:lldb_disabled == 1
-  call s:restore_cpo()
-    finish
-endif
-
-" import was successful 
-let s:lldb_loaded = 1
 
 " set up UI defaults
-let s:vertical = 'vertical'
+" lldb term - vertical
+let s:vertical = 1
 
 func! s:StartDebug_prompt()
   if s:vertical
@@ -105,6 +96,7 @@ func! s:StartDebug_prompt()
   else
     echo "running job"
     let info = job_info(s:lldbjob)
+    let s:lldb_loaded = 1
     echo "Exitcode = " . info.exitval
   endif
 
@@ -151,11 +143,6 @@ function! s:InstallCommands()
 
   command -nargs=? Lbreakpoint call s:SetBreakpoint(<q-args>)
   command -nargs=0 LStartDebug call s:StartDebug_term()
-
-  " XXX remove all these
-  "command LFinish pyx ctrl.doNew('finish', '<f-args>')
-  "command -nargs=* Ltarget     pyx ctrl.doTarget('<args>')
-  "command -nargs=* Lbreakpoint        pyx ctrl.doNew('breakpoint', '<f-args>')
 
 endfunction
 
@@ -336,22 +323,9 @@ augroup VimLLDB
   au ColorScheme * call s:Highlight()
 augroup END
 
-
-call s:Highlight()
 call s:InstallCommands()
 call s:StartDebug_term()
 "call s:StartDebug_prompt()
 
 
 call s:restore_cpo()
-
-
-" XXX test for thread hijack only - remove before PROD
-func g:SBDCreate()
-term
-pyx << EOF
-sdb = lldb.SBDebugger.Create()
-print("Created LLDB %s")
-EOF
-redraw
-endfunc

@@ -6,23 +6,28 @@ import lldb
 import socket
 import lldb_path
 
-lldb_path.update_sys_path()
+
+try:
+    lldb_path.update_sys_path()
+    import lldb
+except ImportError:
+    print("Unable to load vim-lldb. Check lldb is available on path with `lldb -P` and codesigned. See README for setup help.")
 
 log = open('lldb_server.log', 'a')
 log.write("\n\nnew run\n\n")
 
-try:
-    import lldb
-except ImportError:
-    print("Unable to load vim-lldb. Check lldb is available on path with `lldb -P` and codesigned. See README for setup help.")
-    pass
-
 HOST = ''
 PORT = 65400
 
+
+""" @TODO this will handle switch logic for updating vim """
+""" see :help term_sendkeys for job > vim communication """
+def sendResToVim(res):
+    #print('\033]51;["call","Tapi_%s", ["%s"]]\007' % (method, str(args)))
+    print('\033]51;["call","Tapi_%s", ["%s"]]\007' % ('Test', 'placeholder'))
+
 class LLDB(object):
     """ Manage lifecycle of lldb instance"""
-
     def __init__(self):
         self.dbg = None
         self.target = None
@@ -33,53 +38,44 @@ class LLDB(object):
 
     def start(self):
         self.dbg = lldb.SBDebugger.Create()
-        # during step/continue do not return from function until process stops
-        # async is enabled by default
+        # do not return from function until process stops during step/continue
         self.dbg.SetAsync(False)
         self.ci = self.dbg.GetCommandInterpreter()
-
-        #exe = os.path.join(os.getcwd(), 'par')
-        #self.dbg.CreateTarget(exe)
-        self.frame = "live frame"
-
 
     def terminate():
         self.dbg.Terminate()
         self.dbg = None
-
-    def test(q, x):
-        q.put(x + 1243)
-        q.put("debugger: %s"% dbg)
-
-    def sendToVim(self, method, args):
-        #print('\033]51;["call","Tapi_%s", ["%s"]]\007' % (method, str(args)))
-        print('\033]51;["call","Tapi_%s", ["%s"]]\007' % (method, 'placeholder'))
 
     def getCommandResult(self, data):
         res = lldb.SBCommandReturnObject()
         cmd = data.replace('\n', ' ').replace('\r', '')
         self.ci.HandleCommand(cmd, res)
 
-        log.write('(lldb) %s'% str(res))
+        log.write('%s'% str(res))
         return res
 
 
 """
+@TODO
+* handle keyboard interrupt
 * add tab-completion
-* add 'clear'
+* add 'clear' screen
 * comm -> vim using Tapi
+* respawn on error or user request
 
+Start LLDB interpreter and IO loop to take commands from input prompt
+and pass to debugger instance
 """
-
-def startIOLoop():
+def startIOLoop(outcb):
     dbg = LLDB()
     dbg.start()
     log.write('IO Server started')
 
     while True:
         data = input("(lldb) ")
+
         if len(data) < 1:
-                continue
+            continue
 
         res = dbg.getCommandResult(data)
         if res.Succeeded():
@@ -87,14 +83,18 @@ def startIOLoop():
         else:
             res = res.GetError()
 
-        print('(lldb res) %s'% res)
-        dbg.sendToVim("Test", res)
+        print('%s'% res)
+
+        outcb(res)
+
+    dbg.Terminate()
 
 
 
-
-
-
+"""
+@TODO test all plaforms to ensure terminal comms is enough. If so, we can avoid
+the overhead of a server
+"""
 def startServer():
     dbg = LLDB()
     dbg.start()
@@ -105,11 +105,11 @@ def startServer():
         s.listen()
         conn, addr = s.accept()
         with conn:
-            print('Connected by', addr)
+            log.write('Connected by:', addr)
             while True:
                 data = conn.recv(1024).decode()
                 if (data == 'EOF'):
-                    print('closing server')
+                    log.write('closing server')
                     break
 
                 if not data:
@@ -124,13 +124,12 @@ def startServer():
                     res = 'NOOP'
 
                 log.write('res: %s'% res)
-                print('(lldb out) res: %s'% str(res))
                 conn.sendall(res.encode())
 
         s.close()
 
 
 
-#startServer()
-startIOLoop()
+# start LLDB interpreter
+startIOLoop(sendResToVim)
 
