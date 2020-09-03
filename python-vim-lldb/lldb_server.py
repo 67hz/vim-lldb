@@ -16,11 +16,16 @@ log = open('lldb_server.log', 'a')
 log.write("\n\nnew run\n\n")
 
 
-""" @TODO this will handle switch logic for updating vim """
-""" see :help term_sendkeys for job > vim communication """
-def sendResToVim(res):
-    #print('\033]51;["call","Tapi_%s", ["%s"]]\007' % (method, str(args)))
-    print('\033]51;["call","Tapi_%s", ["%s"]]\007' % ('Test', 'placeholder'))
+""" @TODO this will handle switch logic for updating vim
+    should indicate if UI update is required? call Tapi_x(method, args, {updates})
+    consider move to sep moduls and DI LLDB              
+    see :help term_sendkeys for job > vim communication  """
+def vimOutCb(res):
+    #res = str(res).replace('\'', '888')
+    print('\033]51;["call","Tapi_%s", ["%s"]]\007' % ('LldbOutCb', 'someres'))
+
+def vimErrCb(err):
+    print('\033]51;["call","Tapi_%s", ["%s"]]\007' % ('LldbErrCb', 'someerror'))
 
 
 
@@ -48,7 +53,6 @@ class LLDB(object):
         res = lldb.SBCommandReturnObject()
         cmd = data.replace('\n', ' ').replace('\r', '')
         self.ci.HandleCommand(cmd, res)
-
         log.write('%s'% str(res))
         return res
 
@@ -64,9 +68,10 @@ class LLDB(object):
 Start LLDB interpreter and IO loop to take commands from input prompt
 and pass to debugger instance
 """
-def startIOLoop(outcb):
+def startIOLoop(outcb, errcb):
     dbg = LLDB()
     dbg.start()
+    flag_internal = '--internal'
     log.write('IO Server started')
 
     while True:
@@ -77,14 +82,21 @@ def startIOLoop(outcb):
         if len(data) < 1:
             continue
 
+        # @TODO strip any flags from data
+        # issue gCR in subprocess
         res = dbg.getCommandResult(data)
+
         if res.Succeeded():
             res = res.GetOutput()
+            outcb(res)
         else:
             res = res.GetError()
+            errcb(res)
 
-        print('%s'% res)
-        outcb(res)
+        # do not output response to console - useful for UI queries
+        if flag_internal not in data:
+            print('%s'% res)
+
 
     dbg.Terminate()
 
@@ -93,7 +105,7 @@ def startIOLoop(outcb):
 # start LLDB interpreter
 if not lldbImported:
     print('\033]51;["call","Tapi_%s", ["%s"]]\007' %
-            ('Error', 'Failed to import vim-lldb. See README for help',))
+            ('LldbErrCb', 'Failed to import vim-lldb. See README for help',))
 else:
-    startIOLoop(sendResToVim)
+    startIOLoop(vimOutCb, vimErrCb)
 

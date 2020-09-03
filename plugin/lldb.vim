@@ -67,6 +67,12 @@ let g:vim_lldb_pydir = s:FindPythonScriptDir()
 " lldb term - vertical
 let s:vertical = 1
 
+func! s:StartDebug_common()
+  sign define s:lldb_marker text=>> texthl=Search
+  call s:InstallCommands()
+  call s:StartDebug_term()
+endfunc
+
 func! s:StartDebug_prompt()
   if s:vertical
     vertical new
@@ -175,17 +181,37 @@ func s:SendCommand(cmd)
 endfunc
 
 
-func! g:Tapi_Test(args, msg)
+" use breakpoint list to populate
+" update when a breakpoint event occurs
+" list: file, line, exact_match, locations
+let s:BreakpointDict = {}
+
+func s:CreateBreakpoint()
+  " use dyanmic id
+  exe 'sign place 2 line=' . a:at . ' name=' . s:lldb_marker . ' file=' . expand("%:p")
+endfunc
+
+" TODO move to autoload if possible
+func g:Tapi_Test(args, msg)
   echo 'Tapi_Test' . a:args[0]  . ' ->1: ' . a:args[1] .  ' msg: ' . a:msg[0]
 endfunc
 
-func! g:Tapi_Error(args, msg)
-  echo 'vim-lldb: ' . a:msg[0]
+
+func! g:Tapi_LldbOutCb(args, res)
+  echo 'lldb: ' . a:args . ' mgs: ' . a:res[0]
+  call ch_log('lldb> : ' . a:args[0] . a:res[0])
 endfunc
 
-func! g:Tapi_Breakpoint(args, msg)
+func! g:Tapi_LldbErrCb(args, res)
+  echo 'lldb error: ' . a:args . ' mgs: ' . a:res[0]
+  call ch_log('lldb> : ' . a:args[0] . a:res[0])
+endfunc
+
+func g:Tapi_Breakpoint(args, msg)
   echo 'Tapi_Breakpoint'
   call ch_log('Tapi_Breakpoint: ' . a:args[0] . a:msg[0])
+  " update UI "
+  call s:CreateBreakpoint()
 endfunc
 
 " Returns cword if search term is empty
@@ -204,8 +230,7 @@ augroup VimLLDB
   au ColorScheme * call s:Highlight()
 augroup END
 
-call s:InstallCommands()
-call s:StartDebug_term()
+call s:StartDebug_common()
 "call s:StartDebug_prompt()
 
 
