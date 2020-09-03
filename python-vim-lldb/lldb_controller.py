@@ -8,41 +8,12 @@ from __future__ import print_function
 import os
 import re
 import sys
-import lldb
 import vim
 import socket
 import struct
 from time import sleep
 from utility import *
 from vim_ui import UI
-from multiprocessing import Process, Queue
-
-HOST = ''
-PORT = 65400
-
-
-
-def startClient(LLDB):
-    numTries = 0
-    while numTries < 3:
-        try:
-            s_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s_conn.connect((HOST, PORT))
-            l_onoff = 1
-            l_linger = 0
-            s_conn.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
-                    struct.pack('ii', l_onoff, l_linger))
-            LLDB.isConnected = True
-            print('socket connected')
-            return s_conn
-
-        except OSError as error:
-            print(error)
-            print("Attempt %d of 100"% numTries)
-            sleep(5)
-            numTries += 1
-
-    return -1
 
 
 # =================================================

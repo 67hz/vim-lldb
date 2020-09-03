@@ -4,7 +4,6 @@ import os
 import sys
 import lldb_path
 
-
 try:
     lldb_path.update_sys_path()
     import lldb
@@ -72,6 +71,8 @@ def startIOLoop(outcb):
 
     while True:
         data = input("(lldb) ")
+        if data == 'Finish':
+            return
 
         if len(data) < 1:
             continue
@@ -83,7 +84,6 @@ def startIOLoop(outcb):
             res = res.GetError()
 
         print('%s'% res)
-
         outcb(res)
 
     dbg.Terminate()
