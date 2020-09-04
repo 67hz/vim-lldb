@@ -12,7 +12,7 @@ except ImportError:
     lldbImported = False
 
 
-log = open('lldb_server.log', 'a')
+log = open('lldb_server.log', 'w')
 log.write("\n\nnew run\n\n")
 
 
@@ -21,12 +21,10 @@ log.write("\n\nnew run\n\n")
     consider move to sep moduls and DI LLDB              
     see :help term_sendkeys for job > vim communication  """
 def vimOutCb(res):
-    #res = str(res).replace('\'', '888')
-    print('\033]51;["call","Tapi_%s", ["%s"]]\007' % ('LldbOutCb', 'someres'))
+    print('\033]51;["call","Tapi_LldbOutCb", ["{}"]]\007'.format(res))
 
 def vimErrCb(err):
-    print('\033]51;["call","Tapi_%s", ["%s"]]\007' % ('LldbErrCb', 'someerror'))
-
+    print('\033]51;["call","Tapi_LldbErrCb",["{}"]]\007'.format(err))
 
 
 class LLDB(object):
@@ -72,7 +70,7 @@ def startIOLoop(outcb, errcb):
     dbg = LLDB()
     dbg.start()
     flag_internal = '--internal'
-    log.write('IO Server started')
+    log.write('IO Server started\n')
 
     while True:
         data = input("(lldb) ")
@@ -83,20 +81,18 @@ def startIOLoop(outcb, errcb):
             continue
 
         # @TODO strip any flags from data
-        # issue gCR in subprocess
         res = dbg.getCommandResult(data)
 
         if res.Succeeded():
-            res = res.GetOutput()
-            outcb(res)
+            output = res.GetOutput()
+            outcb(output)
         else:
-            res = res.GetError()
-            errcb(res)
+            output = res.GetError()
+            errcb(output)
 
         # do not output response to console - useful for UI queries
         if flag_internal not in data:
             print('%s'% res)
-
 
     dbg.Terminate()
 

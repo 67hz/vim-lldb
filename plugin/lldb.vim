@@ -191,25 +191,19 @@ func s:CreateBreakpoint()
   exe 'sign place 2 line=' . a:at . ' name=' . s:lldb_marker . ' file=' . expand("%:p")
 endfunc
 
-" TODO move to autoload if possible
-func g:Tapi_Test(args, msg)
-  echo 'Tapi_Test' . a:args[0]  . ' ->1: ' . a:args[1] .  ' msg: ' . a:msg[0]
+func! g:Tapi_LldbOutCb(bufnum, args)
+  echomsg 'lldb args: ' . a:args[0]
+  call ch_log('lldb> : ' . a:args[0])
 endfunc
 
-
-func! g:Tapi_LldbOutCb(args, res)
-  echo 'lldb: ' . a:args . ' mgs: ' . a:res[0]
-  call ch_log('lldb> : ' . a:args[0] . a:res[0])
+func! g:Tapi_LldbErrCb(bufnum, args)
+  echomsg 'lldb error: ' . a:args[0]
+  call ch_log('lldb> : ' . a:args[0])
 endfunc
 
-func! g:Tapi_LldbErrCb(args, res)
-  echo 'lldb error: ' . a:args . ' mgs: ' . a:res[0]
-  call ch_log('lldb> : ' . a:args[0] . a:res[0])
-endfunc
-
-func g:Tapi_Breakpoint(args, msg)
+func g:Tapi_Breakpoint(bufnum, args)
   echo 'Tapi_Breakpoint'
-  call ch_log('Tapi_Breakpoint: ' . a:args[0] . a:msg[0])
+  call ch_log('Tapi_Breakpoint: ' . a:bufnum[0] . a:args[0])
   " update UI "
   call s:CreateBreakpoint()
 endfunc
