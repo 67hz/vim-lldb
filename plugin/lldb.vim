@@ -56,13 +56,14 @@ endfunction
 
 let g:vim_lldb_pydir = s:FindPythonScriptDir()
 
-
 " set up UI defaults
 " lldb term - vertical
 let s:vertical = 1
 
 func! s:StartDebug_common()
   sign define lldb_marker text=>> texthl=Search
+  sign define lldb_active linehl=Search
+  sign define lldb_inactive linehl=None
   call s:InstallCommands()
 
   " remove before Prod - defer launch until user engages
@@ -76,6 +77,7 @@ endfunc
 " TODO: handle updates common to all lldb responses
 " may not be needed if handling updates on an individual basis
 func s:BufRead()
+  echomsg 'BufRead'
 endfunc
 
 func! s:StartDebug_prompt()
@@ -185,28 +187,46 @@ func s:SendCommand(cmd)
   call term_sendkeys(s:ptybuf, a:cmd . "\r")
 endfunc
 
+" returns file:line:char
+func s:GetFileAsList(str)
+  let colon_sep = trim(substitute(a:str[0], '.*at', '', ''))
+  let file_str = split(colon_sep, '\:')
+  return file_str
+endfunc
+
 
 " TODO: handle full list as 'breakpoint list'
-func s:UI_Breakpoint(at)
-  let at = a:at[0]
-
-  let colon_sep = trim(substitute(at, '.*at', '', ''))
-  " above resolves to -> 'file:line:char'
-
-  let file_str = split(colon_sep, '\:')
+func s:UI_Breakpoint(res)
+  let file_str = s:GetFileAsList(a:res)
   let file = file_str[0]
   let ln = file_str[1]
   "echomsg 'filename:' . file . ' at line=' . ln
   exe 'sign place 2 line=' . ln . ' name=lldb_marker file=' . file
 endfunc
 
+func s:UI_Process(res)
+  echomsg 'active line'
+  let file_str = s:GetFileAsList(a:res)
+  let file = file_str[0]
+  let ln = file_str[1]
+
+  " drop to open file
+  exe 'sign place 2 line=' . ln . ' name=lldb_active file=' . file
+endfunc
+
 func! g:Tapi_LldbOutCb(bufnum, args)
-  if a:args[0] =~ 'Breakpoint' && a:args[0] !~ 'WARNING'
+  echomsg 'lldb args: ' . a:args[0]
+  call ch_log('lldb> : ' . a:args[0])
+
+  if a:args[0] =~? 'Process' && a:args[0] !~? 'invalid'
+    call s:UI_Process(a:args)
+
+  elseif a:args[0] =~? 'Breakpoint' && a:args[0] !~? 'warning'
     " update breakpoint in UI
     call s:UI_Breakpoint(a:args)
+
   else
-    echomsg 'lldb args: ' . a:args[0]
-    call ch_log('lldb> : ' . a:args[0])
+    call ch_log('lldb catchall')
   endif
 endfunc
 
