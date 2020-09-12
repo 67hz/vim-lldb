@@ -132,7 +132,9 @@ function! s:InstallCommands()
   let save_cpo = &cpo
   set cpo&vim
 
-  command -nargs=? Lbreakpoint call s:SetBreakpoint(<q-args>)
+  " TODO add breakpoint with args
+  "command -nargs=? Lbreakpoint call s:Breakpoint(<q-args>)
+  command -nargs=? Lbreakpoint call s:ToggleBreakpoint()
   command LStartDebug call s:StartDebug_term()
 
   let &cpo = save_cpo
@@ -154,29 +156,51 @@ func s:GetFileAsList(str)
   return file_str
 endfunc
 
-" stored as fname:line:char
+" stored as {"filename": [line_nr1, line_nr2, ...], "filename2": [...]}
+" TODO decide on relative or abs paths, add breakpoints_by_name {}
 let s:breakpoints = {}
 
-func s:breakpoints.add(file_str)
-  echo 'bp add func' . a:file_str[0] . ' ln = ' . a:file_str[1]
-  if has_key(s:breakpoints, a:file_str[0])
-    " add bp if does not exist
-    echo 'got key' . a:file_str[0]
-    if index(s:breakpoints[a:file_str[0]], a:file_str[1]) == -1
-      add(s:breakpoints[a:file_str[0]], a:file_str[1])
-      echo 'adding bp to existing list' . join(s:breakpoints[a:file_str[0]], '--')
+func s:breakpoints._exists(filename, line_nr)
+  if has_key(s:breakpoints, a:filename)
+    return index(s:breakpoints[a:filename], ''. a:line_nr)
+  endif
+  return -1
+endfunc
+
+func s:breakpoints._add(filename, line_nr)
+  if has_key(s:breakpoints, a:filename)
+    " add bp if does not exist under file
+    if index(s:breakpoints[a:filename], a:line_nr) == -1
+      call insert(s:breakpoints[a:filename], a:line_nr)
+      echo 'adding bp to existing list' . join(s:breakpoints[a:filename], '--')
     endif
   else
-    let s:breakpoints[a:file_str[0]] = [a:file_str[1]]
-    echo 'adding bp to empty list' . join(s:breakpoints[a:file_str[0]], '--')
+    " add a new file entry for breakpoint
+    let s:breakpoints[a:filename] = [a:line_nr]
+    echo 'adding bp to empty list' . join(s:breakpoints[a:filename], '--')
   endif
 endfunc
 
-" default to line under cursor in file
-func s:SetBreakpoint(at)
-   let at = empty(a:at) ?
-         \ 'set --file ' . fnameescape(expand('%:p')) . ' --line ' . line('.') : a:at
-  call s:SendCommand('breakpoint ' . at)
+func s:breakpoints._remove(filename, line_nr)
+  let idx = s:breakpoints._exists(a:filename, a:line_nr)
+  call remove(s:breakpoints[a:filename], idx)
+endfunc
+
+" set bp to line under cursor in file
+func s:ToggleBreakpoint()
+  " abs
+  "let filename = fnameescape(expand('%:p')) 
+  " relative - tail only
+  let filename = fnameescape(expand('%:t'))
+  let line_nr = line('.')
+  let arg_string = 'set --file ' . filename . ' --line ' . line_nr
+
+  if s:breakpoints._exists(filename, line_nr) >= 0
+    " TODO send command to terminal instead of direct
+    call s:breakpoints._remove(filename, line_nr)
+  else
+    call s:SendCommand('breakpoint ' . arg_string)
+  endif
 endfunc
 
 " TODO: handle full list as 'breakpoint list'
@@ -184,10 +208,14 @@ func s:UI_AddBreakpoint(res)
   let file_str = s:GetFileAsList(a:res)
   let file = file_str[0]
   let ln = file_str[1]
-  "echomsg 'filename:' . file . ' at line=' . ln
+  call s:breakpoints._add(file, ln)
   exe 'sign place 2 line=' . ln . ' name=lldb_marker file=' . file
-  call s:breakpoints.add(file_str)
 endfunc
+
+func s:UI_RemoveBreakpoint(res)
+  echomsg 'remove bp placeholder'
+endfunc
+
 
 func s:UI_HighlightLine(res)
   echomsg 'active line'
@@ -209,10 +237,14 @@ func! g:Tapi_LldbOutCb(bufnum, args)
   if a:args[0] =~? 'Process' && a:args[0] !~? 'invalid'
     call s:UI_HighlightLine(a:args)
 
+  " TODO specifiy add remove BPs
   elseif a:args[0] =~? 'Breakpoint' && a:args[0] !~? 'warning'
-    " update breakpoint in UI
-    call s:UI_AddBreakpoint(a:args)
-
+    if a:args[0] =~? 'deleted'
+      call s:UI_RemoveBreakpoint(a:args)
+    else
+      " update breakpoint in UI
+      call s:UI_AddBreakpoint(a:args)
+    endif
   else
     call ch_log('lldb catchall')
   endif
@@ -225,10 +257,12 @@ endfunc
 
 func! g:DebugBreakpoints()
   for key in keys(s:breakpoints)
-    echo 'key: ' . key
-    for bp in s:breakpoints[key]
-    echo s:breakpoints[key] . ' => ' . bp
-    endfor
+    if key !~ '^_'
+      echo 'key:' . key . '<'
+      for bp in s:breakpoints[key]
+        echo 'bp@line#: ' . bp
+      endfor
+    endif
   endfor
 endfunc
 
