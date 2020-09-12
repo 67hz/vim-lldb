@@ -61,10 +61,10 @@ class LLDB(object):
 @TODO
 * handle keyboard interrupt
 * add tab-completion
+* add command history, last command toggle
 * add 'clear' screen
-* comm -> vim using Tapi
 * respawn on error or user request
-* define arg flags like '--internal'
+* define arg flags (e.g., '--internal', ...)
 
 Start LLDB interpreter and IO loop to take commands from input prompt
 and pass to debugger instance

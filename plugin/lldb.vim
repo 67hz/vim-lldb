@@ -10,22 +10,16 @@ function! s:restore_cpo()
   unlet s:keepcpo
 endfunction
 
-if !has('pythonx')
-  call confirm('ERROR: This Vim installation does not have python support. lldb debugging is disabled.')
-  call s:restore_cpo()
-  finish
-elseif (has('python3'))
-  " prefer Python 3 over 2
-  let s:lldb_python_version = 3
-elseif (has('python'))
-  let s:lldb_python_version = ""
-endif
 
 if(v:version < 801)
   call confirm('ERROR: lldb requires vim > v8.1.0. lldb debugging is disabled.')
   call s:restore_cpo()
   finish
 endif 
+
+if (!exists("g:lldb_python_interpreter_path"))
+  let g:lldb_python_interpreter_path = 'python'
+endif
 
 if (exists("g:lldb_enable") && g:lldb_enable == 0 || (exists("s:lldb_loaded")) )
   call s:restore_cpo()
@@ -70,6 +64,9 @@ let s:vertical = 1
 func! s:StartDebug_common()
   sign define lldb_marker text=>> texthl=Search
   call s:InstallCommands()
+
+  " remove before Prod - defer launch until user engages
+  " auto start for debugging only
   call s:StartDebug_term()
 
   augroup TermDebug
@@ -96,10 +93,9 @@ func! s:StartDebug_prompt()
   "call prompt_setinterrupt(s:promptbuf, function('s:PromptInterrupt'))
 
   if s:vertical
-    exe (&columns / 2 - 1) . "wincmd | "
+    exe (&columns / 3 - 1) . "wincmd | "
   endif
 
-  "let cmd = ['/bin/sh', ' python /home/darkbox/.vim/pack/mine/opt/vim-lldb/python-vim-lldb/lldb_client.py']
   let cmd = ['lldb']
   let s:lldbjob = job_start(cmd, {
         \ 'out_cb': function('s:LldbOutCallback'),
@@ -117,7 +113,6 @@ func! s:StartDebug_prompt()
   " mark buffer so not easy to close
   set modified
   let s:lldb_channel = job_getchannel(s:lldbjob)
-
 endfunc
 
 func! s:LldbOutCallback(text)
@@ -141,7 +136,7 @@ func! s:StartDebug_term()
   endif
 
   " lldb server
-  let s:ptybuf = term_start('python ' . g:vim_lldb_pydir . '/lldb_server.py', {
+  let s:ptybuf = term_start(g:lldb_python_interpreter_path . ' ' . g:vim_lldb_pydir . '/lldb_server.py', {
        \ 'term_name': 'lldb_server',
        \ 'vertical': s:vertical,
        \ 'term_finish': 'close',
@@ -149,7 +144,11 @@ func! s:StartDebug_term()
        \ })
 
   let s:lldb_term_running=1
-  let s:lldbwin = win_getid(winnr())
+
+  " UI TODO: lldb gets left 1/3 - define sensible, overridable defaults
+  if s:vertical
+    exe (&columns / 3 - 1) . "wincmd | "
+  endif
 
 endfunc
 
@@ -167,8 +166,6 @@ endfunc
 function! s:InstallCommands()
   let save_cpo = &cpo
   set cpo&vim
-  command Lldb win_gotoid(s:lldbwin)
-  "echo 'win: ' . s:lldbwin
 
   command -nargs=? Lbreakpoint call s:SetBreakpoint(<q-args>)
   command LStartDebug call s:StartDebug_term()
