@@ -95,7 +95,7 @@ def startIOLoop(outcb, errcb):
 
         # do not output response to console or run cb - useful for UI queries
         if flag_internal not in data:
-            print('%s'% res)
+            print('%s'% output)
 
     dbg.Terminate()
 
