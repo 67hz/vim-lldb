@@ -189,23 +189,22 @@ func s:SendCommand(cmd)
 endfunc
 
 
-" use 'lldb> breakpoint list' to populate
-" update when a breakpoint event occurs
-" list: file, line, exact_match, locations
-let s:BreakpointDict = {}
-
+" TODO: handle full list as 'breakpoint list'
 func s:UI_Breakpoint(at)
   let at = a:at[0]
+
   let colon_sep = trim(substitute(at, '.*at', '', ''))
-  let fns = split(colon_sep, '\:')
-  let file = fns[0]
-  let ln = fns[1]
-  echomsg 'filename:' . fns[0] . ' at line=' . ln
+  " above resolves to -> 'file:line:char'
+
+  let file_str = split(colon_sep, '\:')
+  let file = file_str[0]
+  let ln = file_str[1]
+  "echomsg 'filename:' . file . ' at line=' . ln
   exe 'sign place 2 line=' . ln . ' name=lldb_marker file=' . file
 endfunc
 
 func! g:Tapi_LldbOutCb(bufnum, args)
-  if a:args[0] =~ 'Breakpoint'
+  if a:args[0] =~ 'Breakpoint' && a:args[0] !~ 'WARNING'
     " update breakpoint in UI
     call s:UI_Breakpoint(a:args)
   else
