@@ -55,15 +55,6 @@ class LLDB(object):
         self.dbg.SetAsync(False)
         self.ci = self.dbg.GetCommandInterpreter()
 
-        # see CommandInterpreterRunOptions
-        ro = lldb.SBCommandInterpreterRunOptions()
-        #print('ro print results%s'% ro.GetPrintResults())
-        #print('ro echo cmd %s'% ro.GetEchoCommands())
-        ro.SetPrintResults(False)
-        ro.SetEchoCommands(False)
-        #print('ro pr %s'% ro.GetPrintResults())
-        #print('ro ec %s'% ro.GetEchoCommands())
-
     def setTarget(self):
         self.target = lldb.SBTarget()
         #print("lldb.target: %s"% lldb.target)
@@ -93,8 +84,7 @@ class LLDB(object):
         cmd = data.replace('\n', ' ').replace('\r', '')
         self.ci.HandleCommand(cmd, res)
         log.write('%s'% str(res))
-
-        print('gps: %s'% self.getProcessState())
+        log.write('gps: %s'% self.getProcessState())
 
         if self.getProcessState() == 'connected':
             print("Connected")
