@@ -68,9 +68,17 @@ let g:vim_lldb_pydir = s:FindPythonScriptDir()
 let s:vertical = 1
 
 func! s:StartDebug_common()
-  sign define s:lldb_marker text=>> texthl=Search
+  sign define lldb_marker text=>> texthl=Search
   call s:InstallCommands()
   call s:StartDebug_term()
+
+  augroup TermDebug
+    au BufRead * call s:BufRead()
+endfunc
+
+" TODO: handle updates common to all lldb responses
+" may not be needed if handling updates on an individual basis
+func s:BufRead()
 endfunc
 
 func! s:StartDebug_prompt()
@@ -181,19 +189,29 @@ func s:SendCommand(cmd)
 endfunc
 
 
-" use breakpoint list to populate
+" use 'lldb> breakpoint list' to populate
 " update when a breakpoint event occurs
 " list: file, line, exact_match, locations
 let s:BreakpointDict = {}
 
-func s:CreateBreakpoint()
-  " use dyanmic id
-  exe 'sign place 2 line=' . a:at . ' name=' . s:lldb_marker . ' file=' . expand("%:p")
+func s:UI_Breakpoint(at)
+  let at = a:at[0]
+  let colon_sep = trim(substitute(at, '.*at', '', ''))
+  let fns = split(colon_sep, '\:')
+  let file = fns[0]
+  let ln = fns[1]
+  echomsg 'filename:' . fns[0] . ' at line=' . ln
+  exe 'sign place 2 line=' . ln . ' name=lldb_marker file=' . file
 endfunc
 
 func! g:Tapi_LldbOutCb(bufnum, args)
-  echomsg 'lldb args: ' . a:args[0]
-  call ch_log('lldb> : ' . a:args[0])
+  if a:args[0] =~ 'Breakpoint'
+    " update breakpoint in UI
+    call s:UI_Breakpoint(a:args)
+  else
+    echomsg 'lldb args: ' . a:args[0]
+    call ch_log('lldb> : ' . a:args[0])
+  endif
 endfunc
 
 func! g:Tapi_LldbErrCb(bufnum, args)
@@ -201,12 +219,6 @@ func! g:Tapi_LldbErrCb(bufnum, args)
   call ch_log('lldb> : ' . a:args[0])
 endfunc
 
-func g:Tapi_Breakpoint(bufnum, args)
-  echo 'Tapi_Breakpoint'
-  call ch_log('Tapi_Breakpoint: ' . a:bufnum[0] . a:args[0])
-  " update UI "
-  call s:CreateBreakpoint()
-endfunc
 
 " Returns cword if search term is empty
 function! s:CursorWord(term) 

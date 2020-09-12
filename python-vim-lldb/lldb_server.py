@@ -18,9 +18,11 @@ log.write("\n\nnew run\n\n")
 
 """ @TODO this will handle switch logic for updating vim
     should indicate if UI update is required? call Tapi_x(method, args, {updates})
-    consider move to sep moduls and DI LLDB              
-    see :help term_sendkeys for job > vim communication  """
+    consider move to sep moduls and DI lldb
+    see :help term_sendkeys for job > vim communication
+    """
 def vimOutCb(res):
+    # if UI update needed? 
     print('\033]51;["call","Tapi_LldbOutCb", ["{}"]]\007'.format(res))
 
 def vimErrCb(err):
@@ -62,6 +64,7 @@ class LLDB(object):
 * add 'clear' screen
 * comm -> vim using Tapi
 * respawn on error or user request
+* define arg flags like '--internal'
 
 Start LLDB interpreter and IO loop to take commands from input prompt
 and pass to debugger instance
@@ -90,7 +93,7 @@ def startIOLoop(outcb, errcb):
             output = res.GetError()
             errcb(output)
 
-        # do not output response to console - useful for UI queries
+        # do not output response to console or run cb - useful for UI queries
         if flag_internal not in data:
             print('%s'% res)
 

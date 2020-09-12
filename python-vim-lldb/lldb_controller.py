@@ -8,6 +8,7 @@ from __future__ import print_function
 import os
 import re
 import sys
+import lldb
 import vim
 import socket
 import struct
@@ -63,8 +64,6 @@ class StepType:
 
 
 
-
-
 class LLDBController(object):
     """ Handles Vim and LLDB events such as commands and lldb events. """
 
@@ -86,9 +85,8 @@ class LLDBController(object):
         self.s_conn = None
         self.isConnected = False
         self.dbg = None
-        #self.dbg = lldb.SBDebugger.Create()
-
         # use the created dbg from terminal in vim instead
+        #self.dbg = lldb.SBDebugger.Create()
         self.ui = UI()
 
     def doNew(self, command, command_args):
