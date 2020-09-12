@@ -26,27 +26,6 @@ if (exists("g:lldb_enable") && g:lldb_enable == 0 || (exists("s:lldb_loaded")) )
   finish
 endif
 
-function! s:Highlight()
-  if !hlexists("lldb_output")
-    :hi lldb_output ctermfg=NONE ctermbg=NONE guifg=NONE guibg=NONE 
-  endif
-  if !hlexists("lldb_breakpoint")
-    :hi lldb_breakpoint ctermfg=NONE ctermbg=NONE guifg=NONE guibg=NONE 
-  endif
-  if !hlexists("lldb_pc_active")
-    :hi lldb_pc_active ctermfg=White ctermbg=Blue guifg=White guibg=Blue
-  endif
-  if !hlexists("lldb_pc_inactive")
-    :hi lldb_pc_inactive ctermfg=NONE ctermbg=LightGray guifg=NONE guibg=LightGray
-  endif
-  if !hlexists("lldb_changed")
-    :hi lldb_changed ctermfg=DarkGreen ctermbg=White guifg=DarkGreen guibg=White
-  endif
-  if !hlexists("lldb_selected")
-    :hi lldb_selected ctermfg=LightYellow ctermbg=DarkGray guifg=LightYellow guibg=DarkGray
-  endif
-endfunction
-
 " Setup the python interpreter path
 let s:script_dir = resolve(expand("<sfile>:p:h"))
 function! s:FindPythonScriptDir()
@@ -77,17 +56,7 @@ endfunc
 " TODO: handle updates common to all lldb responses
 " may not be needed if handling updates on an individual basis
 func s:BufRead()
-  echomsg 'BufRead'
-endfunc
-
-func! s:LldbOutCallback(text)
-  echo a:text
-  call ch_log('lldb outcallback: ' . a:text)
-endfunc
-
-func! s:PromptCallback(text)
-  call ch_log('prompt callback: ' . a:text)
-  call s:SendCommand(a:text)
+  "echomsg 'BufRead'
 endfunc
 
 
@@ -172,12 +141,10 @@ func s:breakpoints._add(filename, line_nr)
     " add bp if does not exist under file
     if index(s:breakpoints[a:filename], a:line_nr) == -1
       call insert(s:breakpoints[a:filename], a:line_nr)
-      echo 'adding bp to existing list' . join(s:breakpoints[a:filename], '--')
     endif
   else
     " add a new file entry for breakpoint
     let s:breakpoints[a:filename] = [a:line_nr]
-    echo 'adding bp to empty list' . join(s:breakpoints[a:filename], '--')
   endif
 endfunc
 
@@ -218,7 +185,6 @@ endfunc
 
 
 func s:UI_HighlightLine(res)
-  echomsg 'active line'
   " remove existing highlight
 
   let file_str = s:GetFileAsList(a:res)
@@ -266,25 +232,6 @@ func! g:DebugBreakpoints()
   endfor
 endfunc
 
-
-" Returns cword if search term is empty
-function! s:CursorWord(term) 
-  return empty(a:term) ? expand('<cword>') : a:term 
-endfunction
-
-" Returns cleaned cWORD if search term is empty
-function! s:CursorWORD(term) 
-  " Will strip all non-alphabetic characters from both sides
-  return empty(a:term) ?  substitute(expand('<cWORD>'), '^\A*\(.\{-}\)\A*$', '\1', '') : a:term 
-endfunction
-
-augroup VimLLDB
-  autocmd!
-  au ColorScheme * call s:Highlight()
-augroup END
-
 call s:StartDebug_common()
-"call s:StartDebug_prompt()
-
 
 call s:restore_cpo()
