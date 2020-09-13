@@ -1,6 +1,11 @@
 "
 " LLDB debugger for Vim
 "
+" TODO:
+" 
+" * add breakpoints_by_name {} to allow deleting by name, use as cross-ref
+" from s:breakpoints {}
+"
 
 let s:keepcpo = &cpo
 set cpo&vim
@@ -118,14 +123,18 @@ func s:SendCommand(cmd)
   call term_sendkeys(s:ptybuf, a:cmd . "\r")
 endfunc
 
-" returns file:line:char
-func s:GetFileAsList(str)
+" returns [filename, line_nr, breakpoint id] from lldb output string
+func s:GetBreakpointAsList(str)
+  let bp_id = trim(substitute(a:str[0], '.*Breakpoint\s\([0-9]\)\(.*\)', '\1', ''))
+  echomsg 'bp_id: ' . bp_id
   let colon_sep = trim(substitute(a:str[0], '.*at', '', ''))
   let file_str = split(colon_sep, '\:')
-  return file_str
+  return [file_str[0], file_str[1], bp_id]
 endfunc
 
 " stored as {"filename": [line_nr1, line_nr2, ...], "filename2": [...]}
+" stored as {"filename": ['line_nr1:id', 'line_nr2:id', ...], "filename2": [...]}
+" stored as {"filename": [{line_nr: id}, {line_nr: id}, ...], "filename2": [...]}
 " TODO decide on relative or abs paths, add breakpoints_by_name {}
 let s:breakpoints = {}
 
@@ -136,7 +145,7 @@ func s:breakpoints._exists(filename, line_nr)
   return -1
 endfunc
 
-func s:breakpoints._add(filename, line_nr)
+func s:breakpoints._add(filename, line_nr, bp_id)
   if has_key(s:breakpoints, a:filename)
     " add bp if does not exist under file
     if index(s:breakpoints[a:filename], a:line_nr) == -1
@@ -172,11 +181,9 @@ endfunc
 
 " TODO: handle full list as 'breakpoint list'
 func s:UI_AddBreakpoint(res)
-  let file_str = s:GetFileAsList(a:res)
-  let file = file_str[0]
-  let ln = file_str[1]
-  call s:breakpoints._add(file, ln)
-  exe 'sign place 2 line=' . ln . ' name=lldb_marker file=' . file
+  let [filename, line_nr, bp_id] = s:GetBreakpointAsList(a:res)
+  call s:breakpoints._add(filename, line_nr, bp_id)
+  exe 'sign place 2 line=' . line_nr . ' name=lldb_marker file=' . filename
 endfunc
 
 func s:UI_RemoveBreakpoint(res)
@@ -187,9 +194,7 @@ endfunc
 func s:UI_HighlightLine(res)
   " remove existing highlight
 
-  let file_str = s:GetFileAsList(a:res)
-  let file = file_str[0]
-  let ln = file_str[1]
+  let [file, ln, bp_id] = s:GetBreakpointAsList(a:res)
 
   " drop to open file
   exe 'sign place 2 line=' . ln . ' name=lldb_active file=' . file
@@ -200,10 +205,15 @@ func! g:Tapi_LldbOutCb(bufnum, args)
   echomsg 'lldb args: ' . a:args[0]
   call ch_log('lldb> : ' . a:args[0])
 
+  "
+  " Process
+  "
   if a:args[0] =~? 'Process' && a:args[0] !~? 'invalid'
     call s:UI_HighlightLine(a:args)
 
-  " TODO specifiy add remove BPs
+  "
+  " Breakpoint
+  "
   elseif a:args[0] =~? 'Breakpoint' && a:args[0] !~? 'warning'
     if a:args[0] =~? 'deleted'
       call s:UI_RemoveBreakpoint(a:args)
@@ -211,6 +221,10 @@ func! g:Tapi_LldbOutCb(bufnum, args)
       " update breakpoint in UI
       call s:UI_AddBreakpoint(a:args)
     endif
+  
+  "
+  " Default
+  "
   else
     call ch_log('lldb catchall')
   endif
