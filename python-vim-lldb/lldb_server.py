@@ -1,10 +1,12 @@
 """
 see SBBroadcaster and SBEvent for example
+SBTarget for breakpoint iterator
 """
 from __future__ import print_function
 
 import os
 import sys
+import re
 import lldb_path
 from utility import *
 
@@ -56,11 +58,7 @@ class LLDB(object):
         self.ci = self.dbg.GetCommandInterpreter()
 
     def setTarget(self):
-        self.target = lldb.SBTarget()
-        #print("lldb.target: %s"% lldb.target)
-        #print("self.target: %s"% self.target)
-        self.process = self.ci.GetProcess()
-        self.broadcaster = self.process.GetBroadcaster()
+        self.target = self.dbg.GetSelectedTarget()
 
     def getProcess(self):
         return self.ci.GetProcess()
@@ -69,13 +67,10 @@ class LLDB(object):
         state = self.getProcess().GetState() 
         return self.dbg.StateAsCString(state)
 
-    def getBroadcaster(self):
-        return self.getProcess().GetBroadcaster()
-
     def getPid(self):
         return self.getProcess().GetProcessID()
 
-    def terminate():
+    def terminate(self):
         self.dbg.Terminate()
         self.dbg = None
 
@@ -86,10 +81,39 @@ class LLDB(object):
         log.write('%s'% str(res))
         log.write('gps: %s'% self.getProcessState())
 
+        """ set a target once a process is active, target is update every cmd
+            this may be superfluous depending on lldb's architecture
+        """
+        if self.getPid():
+            self.setTarget()
+
         if self.getProcessState() == 'connected':
             print("Connected")
 
         return res
+
+    """ SBTarget supports module, breakpoint, watchpoint iters """
+    """ maintain breakpoints for easier access for outsiders, e.g, vim """
+    def getAllBreakpoints(self):
+        breakpoints = []
+        for b in self.target.breakpoint_iter():
+            loc = b.FindLocationByID(b.GetID())
+            """
+                regex file, line from breakpoint
+                else
+                    regex from GetLineEntry
+                """
+            if loc:
+                filename = loc.GetAddress().GetLineEntry()
+                breakpoints.append(filename)
+                print("Abs file path: %s"% filename)
+                print("%s"% b)
+            else:
+                print("%s"% b)
+
+
+
+
 
 
 """
@@ -116,6 +140,9 @@ def startIOLoop(outcb, errcb):
         data = input("(lldb) ")
         if data == 'Finish':
             return
+        if data == 'b all':
+            dbg.getAllBreakpoints()
+            continue
 
         if len(data) < 1:
             continue

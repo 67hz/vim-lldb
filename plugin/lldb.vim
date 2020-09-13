@@ -129,12 +129,10 @@ func s:GetBreakpointAsList(str)
   echomsg 'bp_id: ' . bp_id
   let colon_sep = trim(substitute(a:str[0], '.*at', '', ''))
   let file_str = split(colon_sep, '\:')
+  echo 'file: ' . file_str[0] . ' ln: ' . file_str[1] . ' bp_id: ' . bp_id
   return [file_str[0], file_str[1], bp_id]
 endfunc
 
-" stored as {"filename": [line_nr1, line_nr2, ...], "filename2": [...]}
-" stored as {"filename": ['line_nr1:id', 'line_nr2:id', ...], "filename2": [...]}
-" stored as {"filename": [{line_nr: id}, {line_nr: id}, ...], "filename2": [...]}
 " TODO decide on relative or abs paths, add breakpoints_by_name {}
 let s:breakpoints = {}
 
@@ -172,6 +170,8 @@ func s:ToggleBreakpoint()
   let arg_string = 'set --file ' . filename . ' --line ' . line_nr
 
   if s:breakpoints._exists(filename, line_nr) >= 0
+    " if deleting with more than one bp location at cursor, prompt user to
+    " select id to delete
     " TODO send command to terminal instead of direct
     call s:breakpoints._remove(filename, line_nr)
   else
