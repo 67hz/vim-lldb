@@ -20,9 +20,9 @@ except ImportError:
     lldbImported = False
 
 
+""" Free methods """
 def escapeQuotes(res):
     res = escape_ansi(res.encode("utf-8", "replace"))
-    #res = str(res.decode("utf-8")).replace("'", "''")
     res = str(res.decode("utf-8"))
     return res
 
@@ -30,18 +30,13 @@ def parseArgs(data):
     args = data.split(' ')
     return args
 
-""" @TODO this will handle switch logic for updating vim
-    should indicate if UI update is required? call Tapi_x(method, args, {updates})
-    consider move to sep moduls and DI lldb
-    see :help term_sendkeys for job > vim communication
-    """
+""" Escape sequence to trap into Vim's cb channel.
+    See :help term_sendkeys for job -> vim communication """
 def vimOutCb(res, pid, state):
     print('\033]51;["call","Tapi_LldbOutCb", ["{}"]]\007'.format(escapeQuotes(res)))
 
-
 def vimErrCb(err):
     print('\033]51;["call","Tapi_LldbErrCb",["{}"]]\007'.format(escapeQuotes(err)))
-
 
 
 
@@ -85,7 +80,6 @@ class LLDB(object):
 
     def setProcess(self):
         self.process = self.target.GetProcess()
-        #self.process = self.ci.GetProcess()
 
     def getProcessState(self):
         if self.process is not None:
@@ -131,7 +125,6 @@ class LLDB(object):
         line_nr = args[2]
         print('filename: {} line_nr: {}'.format(filename, line_nr))
         self.getAllBreakpoints()
-
 
 
     """ SBTarget supports module, breakpoint, watchpoint iters """
@@ -209,7 +202,7 @@ def startIOLoop(outcb, errcb):
 # start LLDB interpreter
 if not lldbImported:
     print('\033]51;["call","Tapi_%s", ["%s"]]\007' %
-            ('LldbErrCb', 'Failed to import vim-lldb. See README for help',))
+            ('LldbErrFatalCb', 'Failed to import vim-lldb. Try setting g:lldb_python_interpreter_path=\'path/to/python\' in .vimrc. See README for help.',))
 else:
     startIOLoop(vimOutCb, vimErrCb)
 

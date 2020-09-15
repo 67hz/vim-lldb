@@ -75,6 +75,7 @@ func! s:StartDebug_term()
   endif
 
   " lldb server launched in new terminal
+  " TODO error check if launch fails?
   let s:ptybuf = term_start(g:lldb_python_interpreter_path . ' ' . g:vim_lldb_pydir . '/lldb_server.py', {
        \ 'term_name': 'lldb_server',
        \ 'vertical': s:vertical,
@@ -102,19 +103,24 @@ endfunc
 " attach
 " launch
 "
-function! s:InstallCommands()
+func s:InstallCommands()
   let save_cpo = &cpo
   set cpo&vim
 
   " TODO add breakpoint with args
   "command -nargs=? Lbreakpoint call s:Breakpoint(<q-args>)
-  command -nargs=? Lbreakpoint call s:ToggleBreakpoint()
-  command LStartDebug call s:StartDebug_term()
+  command -nargs=? Break call s:ToggleBreakpoint()
+  command Lldb call s:StartDebug_term()
 
   let &cpo = save_cpo
 
-  nnoremap <C-l> :Lbreakpoint<CR>
-endfunction
+  nnoremap <C-l> :Break<CR>
+endfunc
+
+func s:DeleteCommands()
+  delcommand Lldb
+  delcommand Break
+endfunc
 
 func s:SendCommand(cmd)
   call ch_log('sending to lldb: ' . a:cmd)
@@ -170,9 +176,8 @@ func s:ToggleBreakpoint()
   let arg_string = 'set --file ' . filename . ' --line ' . line_nr
 
   if s:breakpoints._exists(filename, line_nr) >= 0
-    " if deleting with more than one bp location at cursor, prompt user to
+    " TODO if deleting with more than one bp location at cursor, prompt user to
     " select id to delete
-    " TODO send command to terminal instead of direct
     "call s:breakpoints._remove(filename, line_nr)
     call s:SendCommand('bp_at ' . filename . ' ' . line_nr . ' --internal')
   else
@@ -232,8 +237,15 @@ func! g:Tapi_LldbOutCb(bufnum, args)
 endfunc
 
 func! g:Tapi_LldbErrCb(bufnum, args)
-  echomsg 'lldb error: ' . a:args[0]
+  echohl WarningMsg | echo 'lldb error: ' . a:args[0] | echohl None
   call ch_log('lldb> : ' . a:args[0])
+endfunc
+
+func! g:Tapi_LldbErrFatalCb(bufnum, args)
+  echohl WarningMsg | echo 'lldb error: ' . a:args[0] | echohl None
+  call ch_log('lldb> : ' . a:args[0])
+  unlet! s:lldb_term_running
+  call s:DeleteCommands()
 endfunc
 
 func! g:DebugBreakpoints()
