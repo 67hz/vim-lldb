@@ -1,6 +1,8 @@
 """
 see SBBroadcaster and SBEvent for example
 SBTarget for breakpoint iterator
+    * FindBreakpointsByID/Name
+    * GetTargetFromEvent
 """
 from __future__ import print_function
 
@@ -18,14 +20,15 @@ except ImportError:
     lldbImported = False
 
 
-log = open('lldb_server.log', 'w')
-log.write("\n\nnew run\n\n")
-
-
 def escapeQuotes(res):
     res = escape_ansi(res.encode("utf-8", "replace"))
-    res = str(res.decode("utf-8")).replace("'", "''")
+    #res = str(res.decode("utf-8")).replace("'", "''")
+    res = str(res.decode("utf-8"))
     return res
+
+def parseArgs(data):
+    args = data.split(' ')
+    return args
 
 """ @TODO this will handle switch logic for updating vim
     should indicate if UI update is required? call Tapi_x(method, args, {updates})
@@ -40,6 +43,8 @@ def vimErrCb(err):
     print('\033]51;["call","Tapi_LldbErrCb",["{}"]]\007'.format(escapeQuotes(err)))
 
 
+
+
 class LLDB(object):
     """ Manage lifecycle of lldb instance"""
     def __init__(self):
@@ -47,56 +52,94 @@ class LLDB(object):
         self.target = None
         self.process = None
         self.ci = None
-        self.broadcaster = None
         self.isActive = False
 
     def start(self):
         self.dbg = lldb.SBDebugger.Create()
-        self.target = self.dbg.CreateTarget('')
         # do not return from function until process stops during step/continue
         self.dbg.SetAsync(False)
         self.ci = self.dbg.GetCommandInterpreter()
 
     def setTarget(self):
-        self.target = self.dbg.GetSelectedTarget()
+        target = self.dbg.GetSelectedTarget()
+        if target.IsValid():
+            self.target = target
+            print('target set')
+        else:
+            print('target invalid')
 
-    def getProcess(self):
-        return self.ci.GetProcess()
+    def startListener(self):
+        event = lldb.SBEvent()
+        broadcaster = self.process.GetBroadcaster()
+        listener = lldb.SBListener('dbg listener')
+        rc = broadcaster.AddListener(listener, lldb.SBProcess.eBroadcastBitStateChanged)
+        if listener.WaitForEventForBroadcasterWithType(5,
+                broadcaster,
+                lldb.SBProcess.eBroadcastBitStateChanged,
+                event):
+            desc = lldbutil.get_description(event)
+            print('Event desc: %s', desc)
+        else:
+            print('no event')
+
+
+    def setProcess(self):
+        self.process = self.target.GetProcess()
 
     def getProcessState(self):
-        state = self.getProcess().GetState() 
-        return self.dbg.StateAsCString(state)
+        if self.process is not None:
+            state = self.process.GetState() 
+            return self.dbg.StateAsCString(state)
+        else:
+            return None
 
     def getPid(self):
-        return self.getProcess().GetProcessID()
+        if self.process is not None and self.process.IsValid():
+            return self.process.GetProcessID()
+        else:
+            return None
 
     def terminate(self):
         self.dbg.Terminate()
         self.dbg = None
 
+    """ run follow up logic after every command. useful for attach/detach """
+    def commandResultManager(self, res):
+        if self.target is None or 'executable set' in str(res):
+            self.setTarget()
+            # unset pre-existing process 
+            self.process = None
+
+        elif self.getPid() is None:
+            self.setProcess()
+            #self.startListener()
+            print('pid: %s'% self.getPid())
+
     def getCommandResult(self, data):
         res = lldb.SBCommandReturnObject()
         cmd = data.replace('\n', ' ').replace('\r', '')
         self.ci.HandleCommand(cmd, res)
-        log.write('%s'% str(res))
-        log.write('gps: %s'% self.getProcessState())
 
-        """ set a target once a process is active, target is update every cmd
-            this may be superfluous depending on lldb's architecture
-        """
-        if self.getPid():
-            self.setTarget()
-
-        if self.getProcessState() == 'connected':
-            print("Connected")
+        self.commandResultManager(res)
 
         return res
+
+    def getBreakpointAtFileLine(self, data):
+        args = parseArgs(data)
+        filename = args[1]
+        line_nr = args[2]
+        print('filename: {} line_nr: {}'.format(filename, line_nr))
+        breakpoints = self.getAllBreakpoints()
+
+
 
     """ SBTarget supports module, breakpoint, watchpoint iters """
     """ maintain breakpoints for easier access for outsiders, e.g, vim """
     def getAllBreakpoints(self):
         breakpoints = []
         for b in self.target.breakpoint_iter():
+            print('a breakpoint')
+            print(b)
             loc = b.FindLocationByID(b.GetID())
             """
                 regex file, line from breakpoint
@@ -107,11 +150,10 @@ class LLDB(object):
                 filename = loc.GetAddress().GetLineEntry()
                 breakpoints.append(filename)
                 print("Abs file path: %s"% filename)
-                print("%s"% b)
-            else:
-                print("%s"% b)
 
 
+
+            return breakpoints
 
 
 
@@ -134,15 +176,22 @@ def startIOLoop(outcb, errcb):
     dbg = LLDB()
     dbg.start()
     flag_internal = '--internal'
-    log.write('IO Server started\n')
 
     while True:
         data = input("(lldb) ")
+
         if data == 'Finish':
             return
-        if data == 'b all':
-            dbg.getAllBreakpoints()
-            continue
+
+        """ internal commands skip lldb's CI """
+        if flag_internal in data:
+            data.replace(flag_internal, '')
+            if 'bp_all' in data:
+                dbg.getAllBreakpoints()
+                continue
+            if 'bp_at' in str(data):
+                dbg.getBreakpointAtFileLine(data)
+                continue
 
         if len(data) < 1:
             continue
@@ -157,9 +206,7 @@ def startIOLoop(outcb, errcb):
             output = res.GetError()
             errcb(output)
 
-        # do not output response to console or run cb - useful for UI queries
-        if flag_internal not in data:
-            print('(lldb) %s'% output)
+        print('(lldb) %s'% output)
 
     dbg.Terminate()
 
