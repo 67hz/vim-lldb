@@ -85,6 +85,7 @@ class LLDB(object):
 
     def setProcess(self):
         self.process = self.target.GetProcess()
+        #self.process = self.ci.GetProcess()
 
     def getProcessState(self):
         if self.process is not None:
@@ -129,16 +130,14 @@ class LLDB(object):
         filename = args[1]
         line_nr = args[2]
         print('filename: {} line_nr: {}'.format(filename, line_nr))
-        breakpoints = self.getAllBreakpoints()
+        self.getAllBreakpoints()
 
 
 
     """ SBTarget supports module, breakpoint, watchpoint iters """
     """ maintain breakpoints for easier access for outsiders, e.g, vim """
     def getAllBreakpoints(self):
-        breakpoints = []
         for b in self.target.breakpoint_iter():
-            print('a breakpoint')
             print(b)
             loc = b.FindLocationByID(b.GetID())
             """
@@ -148,12 +147,7 @@ class LLDB(object):
                 """
             if loc:
                 filename = loc.GetAddress().GetLineEntry()
-                breakpoints.append(filename)
                 print("Abs file path: %s"% filename)
-
-
-
-            return breakpoints
 
 
 

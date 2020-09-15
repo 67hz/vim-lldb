@@ -173,7 +173,8 @@ func s:ToggleBreakpoint()
     " if deleting with more than one bp location at cursor, prompt user to
     " select id to delete
     " TODO send command to terminal instead of direct
-    call s:breakpoints._remove(filename, line_nr)
+    "call s:breakpoints._remove(filename, line_nr)
+    call s:SendCommand('bp_at ' . filename . ' ' . line_nr . ' --internal')
   else
     call s:SendCommand('breakpoint ' . arg_string)
   endif
