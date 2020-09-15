@@ -98,24 +98,26 @@ class LLDB(object):
         self.dbg.Terminate()
         self.dbg = None
 
-    """ run follow up logic after every command. useful for attach/detach """
-    def commandResultManager(self, res):
+        """ lldb handles the task of lauching/attaching relieving this module from a priori knowledge of target reqs and custom settings. We only establish a target after lldb returns from a command with a target instead of creating a target to pass off to lldb. """
+    def syncSession(self, res):
+        # attempt to set target if no target (valid) exists or
+        # an exec is explicitly set
         if self.target is None or 'executable set' in str(res):
             self.setTarget()
-            # unset pre-existing process 
+
+            # unset pre-existing process to make sure we sync to the newest process
             self.process = None
 
         elif self.getPid() is None:
             self.setProcess()
-            #self.startListener()
-            print('pid: %s'% self.getPid())
+            #print('pid: %s'% self.getPid())
 
     def getCommandResult(self, data):
         res = lldb.SBCommandReturnObject()
         cmd = data.replace('\n', ' ').replace('\r', '')
         self.ci.HandleCommand(cmd, res)
 
-        self.commandResultManager(res)
+        self.syncSession(res)
 
         return res
 
@@ -147,16 +149,15 @@ class LLDB(object):
 
 """
 @TODO
-* handle launch/attach/set target
-
 * handle keyboard interrupt
 * add tab-completion
 * add command history, last command toggle
+* add 'Finish' command to end debugger session
 * add 'clear' screen
 * respawn on error or user request
 * define arg flags (e.g., '--internal', ...)
 
-Start LLDB interpreter and IO loop to take commands from input prompt
+Start LLDB interpreter in IO loop to take commands from input prompt
 and pass to debugger instance
 """
 def startIOLoop(outcb, errcb):
@@ -166,9 +167,6 @@ def startIOLoop(outcb, errcb):
 
     while True:
         data = input("(lldb) ")
-
-        if data == 'Finish':
-            return
 
         """ internal commands skip lldb's CI """
         if flag_internal in data:
@@ -183,7 +181,6 @@ def startIOLoop(outcb, errcb):
         if len(data) < 1:
             continue
 
-        # @TODO strip any flags from data
         res = dbg.getCommandResult(data)
 
         if res.Succeeded():
