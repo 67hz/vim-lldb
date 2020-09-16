@@ -21,6 +21,7 @@ except ImportError:
 
 
 """ Free methods """
+
 def escapeQuotes(res):
     res = escape_ansi(res.encode("utf-8", "replace"))
     res = str(res.decode("utf-8"))
@@ -40,8 +41,8 @@ def vimErrCb(err):
 
 
 
+""" Manage lifecycle of lldb instance"""
 class LLDB(object):
-    """ Manage lifecycle of lldb instance"""
     def __init__(self):
         self.dbg = None
         self.target = None
@@ -77,7 +78,6 @@ class LLDB(object):
         else:
             print('no event')
 
-
     def setProcess(self):
         self.process = self.target.GetProcess()
 
@@ -98,8 +98,9 @@ class LLDB(object):
         self.dbg.Terminate()
         self.dbg = None
 
-        """ lldb handles the task of lauching/attaching relieving this module from a priori knowledge of target reqs and custom settings. We only establish a target after lldb returns from a command with a target instead of creating a target to pass off to lldb. """
+
     def syncSession(self, res):
+        """ lldb handles the task of lauching/attaching relieving this module from a priori knowledge of target reqs and custom settings. We only establish a target after lldb returns from a command with a target instead of creating a target to pass off to lldb """
         # attempt to set target if no target (valid) exists or
         # an exec is explicitly set
         if self.target is None or 'executable set' in str(res):
@@ -116,10 +117,15 @@ class LLDB(object):
         res = lldb.SBCommandReturnObject()
         cmd = data.replace('\n', ' ').replace('\r', '')
         self.ci.HandleCommand(cmd, res)
-
         self.syncSession(res)
 
         return res
+
+    def getFrame(self):
+        #frame = lldb.thread.GetSelectedFrame()
+        for thread in self.process:
+            for frame in thread:
+                print(frame)
 
     def getBreakpointAtFileLine(self, data):
         args = parseArgs(data)
@@ -128,13 +134,14 @@ class LLDB(object):
         print('filename: {} line_nr: {}'.format(filename, line_nr))
         self.getAllBreakpoints()
 
-
-    """ SBTarget supports module, breakpoint, watchpoint iters """
-    """ maintain breakpoints for easier access for outsiders, e.g, vim """
     def getAllBreakpoints(self):
+        """ maintain breakpoints for easier access for outsiders, e.g, vim """
         for b in self.target.breakpoint_iter():
             print(b)
+            print('ID: ', b.GetID())
+            print('loc@idx: ', b.GetLocationAtIndex(b.GetID()))
             loc = b.FindLocationByID(b.GetID())
+            print('LOC: ', loc)
             """
                 regex file, line from breakpoint
                 else
@@ -143,7 +150,6 @@ class LLDB(object):
             if loc:
                 filename = loc.GetAddress().GetLineEntry()
                 print("Abs file path: %s"% filename)
-
 
 
 
@@ -177,6 +183,12 @@ def startIOLoop(outcb, errcb):
             if 'bp_at' in str(data):
                 dbg.getBreakpointAtFileLine(data)
                 continue
+            if 'bp_frame' in str(data):
+                dbg.getFrame()
+                continue
+            if 'history' in str(data):
+                dbg.getCommandHistory()
+                continue
 
         if len(data) < 1:
             continue
@@ -196,7 +208,7 @@ def startIOLoop(outcb, errcb):
 
 
 
-# start LLDB interpreter
+# start LLDB interpreter if lldb was imported
 if not lldbImported:
     print('\033]51;["call","Tapi_%s", ["%s"]]\007' %
             ('LldbErrFatalCb', 'Failed to import vim-lldb. Try setting g:lldb_python_interpreter_path=\'path/to/python\' in .vimrc. See README for help.',))
