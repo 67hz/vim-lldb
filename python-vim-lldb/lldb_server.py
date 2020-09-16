@@ -33,8 +33,8 @@ def parseArgs(data):
 
 """ Escape sequence to trap into Vim's cb channel.
     See :help term_sendkeys for job -> vim communication """
-def vimOutCb(res):
-    print('\033]51;["call","Tapi_LldbOutCb", ["{}"]]\007'.format(escapeQuotes(res)))
+def vimOutCb(res, data = {}):
+    print('\033]51;["call","Tapi_LldbOutCb", ["{}", "{}"]]\007'.format(escapeQuotes(res), data))
 
 def vimErrCb(err):
     print('\033]51;["call","Tapi_LldbErrCb",["{}"]]\007'.format(escapeQuotes(err)))
@@ -135,11 +135,16 @@ class LLDB(object):
         self.getAllBreakpoints()
 
     " return list of only breakpoint ids: [1, 3, 4, ...] """
+    " TODO add getter for full dictionary incl. filename:line_nr = [id, id, ...] """
     def getBreakpointIdsAsList(self):
+        id_dict = {}
         ids = []
+
         for b in self.target.breakpoint_iter():
             ids.append(b.GetID())
-        return ids
+
+        id_dict["ids"] = ids
+        return id_dict
 
     def getAllBreakpoints(self):
         """ maintain breakpoints for easier access for outsiders, e.g, vim """
@@ -192,7 +197,7 @@ def startIOLoop(outcb, errcb):
                 dbg.getFrame()
                 continue
             if 'bp_ids' in str(data):
-                outcb('breakpoint all-ids: %s'% dbg.getBreakpointIdsAsList())
+                outcb('breakpoint all-ids', dbg.getBreakpointIdsAsList())
                 continue
 
         if len(data) < 1:

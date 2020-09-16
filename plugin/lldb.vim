@@ -3,8 +3,8 @@
 "
 " TODO:
 " 
-" * add breakpoints_by_name {} to allow deleting by name, use as cross-ref
-" from s:breakpoints {}
+" see built-in functions for user lists, complete_add
+" getbufinfo, getchangelist
 "
 
 let s:keepcpo = &cpo
@@ -134,9 +134,9 @@ endfunc
 
 " returns [filename, line_nr, breakpoint id] from lldb output string
 func s:GetBreakpointAsList(str)
-  let bp_id = trim(substitute(a:str[0], '.*Breakpoint\s\([0-9]\)\(.*\)', '\1', ''))
+  let bp_id = trim(substitute(a:str, '.*Breakpoint\s\([0-9]\)\(.*\)', '\1', ''))
   echomsg 'bp_id: ' . bp_id
-  let colon_sep = trim(substitute(a:str[0], '.*at', '', ''))
+  let colon_sep = trim(substitute(a:str, '.*at', '', ''))
   let file_str = split(colon_sep, '\:')
   echo 'file: ' . file_str[0] . ' ln: ' . file_str[1] . ' bp_id: ' . bp_id
   return [file_str[0], file_str[1], bp_id]
@@ -206,6 +206,7 @@ func s:ToggleBreakpoint()
     else
     " TODO if deleting with more than one bp location under cursor, prompt user to
     " select id to delete: could be a quickfix window or prompt?
+    " see help inputlist under builtin-functions
     endif
   else
     " no match so toggle on
@@ -219,24 +220,19 @@ func s:UI_AddBreakpoint(res)
   exe 'sign place 2 line=' . line_nr . ' name=lldb_marker file=' . filename
 endfunc
 
-func s:UI_SyncBreakpoints(res)
+func s:GetBreakpointIds()
   call s:SendCommand('bp_ids --internal')
 endfunc
 
-" convert string from JSON API comms to list
-" 'some test: [1,2,3]' -> list = [1,2,3]
-func s:LLDBStringToList(str)
-  let list_str = trim(substitute(a:str, '.*\(\[\)\(.*\)\(\]\)', '\2', ''))
-  let list = split(list_str, ',')
-  return list
-endfunc
+func s:UI_UpdateBreakpoints(breakpoints)
+  let bp_list = js_decode(a:breakpoints)
 
-func s:UI_UpdateBreakpoint(res)
-  " pull ids out of [1,2,3] format -> 1,2,3
-  let bp_list = s:LLDBStringToList(a:res[0])
-  for bp in bp_list
+ " for [key, ids] in items(s:breakpointst)
+ " endfor
+
+  for bp in bp_list["ids"]
     echomsg 'remove bp placeholder: ' . bp
-    " TODO remove any breakpoints no in bp_list
+    " TODO remove any breakpoints not in bp_list
   endfor
 endfunc
 
@@ -255,27 +251,28 @@ endfunc
 
 
 func! g:Tapi_LldbOutCb(bufnum, args)
-  echomsg 'lldb args: ' . a:args[0]
-  call ch_log('lldb> : ' . a:args[0])
+  let resp = a:args[0]
+  echomsg 'lldb args: ' . resp
+  call ch_log('lldb> : ' . resp)
 
   "
   " Process
   "
-  if a:args[0] =~? 'Process' && a:args[0] !~? 'invalid'
+  if resp =~? 'Process' && resp !~? 'invalid'
     call s:UI_HighlightLine(a:args)
 
   "
   " Breakpoint
   "
-  elseif a:args[0] =~? 'Breakpoint' && a:args[0] !~? 'warning\|pending\|current'
-    if a:args[0] =~? 'all-ids'
-      call s:UI_UpdateBreakpoint(a:args)
+  elseif resp =~? 'Breakpoint' && resp !~? 'warning\|pending\|current'
+    if resp =~? 'all-ids'
+      call s:UI_UpdateBreakpoints(a:args[1])
 
-    elseif a:args[0] =~? 'deleted'
-      call s:UI_SyncBreakpoints(a:args)
+    elseif resp =~? 'deleted'
+      call s:GetBreakpointIds()
     else
       " update breakpoint in UI
-      call s:UI_AddBreakpoint(a:args)
+      call s:UI_AddBreakpoint(resp)
     endif
   
   "
