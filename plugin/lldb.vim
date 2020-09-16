@@ -45,7 +45,7 @@ let g:vim_lldb_pydir = s:FindPythonScriptDir()
 let s:vertical = 1
 
 func! s:StartDebug_common()
-  sign define lldb_marker text=>> texthl=Search
+  call sign_define('lldb_marker', {'text': '=>', 'texthl': 'Search'})
   sign define lldb_active linehl=Search
   sign define lldb_inactive linehl=None
   call s:InstallCommands()
@@ -160,7 +160,6 @@ func s:ToggleBreakpoint()
           echomsg 'prompt user for ids placeholder'
         else
           " only 1 id at location under cursor so delete it
-          echomsg 'delete 1 bp'
           call s:SendCommand('breakpoint delete ' . id)
         endif
       endfor
@@ -177,11 +176,11 @@ endfunc
 func s:SyncBreakpoints(breakpoints)
   unlet s:breakpoints
   let s:breakpoints = js_decode(a:breakpoints)
-  exe 'sign unplace 2'
+  call sign_unplace('bps')
+
   for [file_linenr, ids] in items(s:breakpoints)
-    echomsg 'file_linenr: ' . file_linenr
     let file_linenr_arr = split(file_linenr, ':')
-    exe 'sign place 2 line=' . file_linenr_arr[1] . ' name=lldb_marker file=' . file_linenr_arr[0]
+    call sign_place(ids[0], 'bps', 'lldb_marker', file_linenr_arr[0], {'lnum': file_linenr_arr[1]})
   endfor
 endfunc
 
