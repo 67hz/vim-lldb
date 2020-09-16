@@ -223,9 +223,21 @@ func s:UI_SyncBreakpoints(res)
   call s:SendCommand('bp_ids --internal')
 endfunc
 
+" convert string from JSON API comms to list
+" 'some test: [1,2,3]' -> list = [1,2,3]
+func s:LLDBStringToList(str)
+  let list_str = trim(substitute(a:str, '.*\(\[\)\(.*\)\(\]\)', '\2', ''))
+  let list = split(list_str, ',')
+  return list
+endfunc
+
 func s:UI_UpdateBreakpoint(res)
-  let bp_ids = trim(substitute(a:res[0], '.*\(\[\)\(.*\)\(\]\)', '\2', ''))
-  echomsg 'remove bp placeholder: ' . bp_ids
+  " pull ids out of [1,2,3] format -> 1,2,3
+  let bp_list = s:LLDBStringToList(a:res[0])
+  for bp in bp_list
+    echomsg 'remove bp placeholder: ' . bp
+    " TODO remove any breakpoints no in bp_list
+  endfor
 endfunc
 
 
