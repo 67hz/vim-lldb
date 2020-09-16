@@ -46,8 +46,9 @@ let s:vertical = 1
 
 func! s:StartDebug_common()
   call sign_define('lldb_marker', {'text': '=>', 'texthl': 'Search'})
-  sign define lldb_active linehl=Search
-  sign define lldb_inactive linehl=None
+  call sign_define('lldb_active', {'linehl': 'Search'})
+  call sign_define('lldb_inactive', {'linehl': 'None'})
+
   call s:InstallCommands()
 
   " remove before Prod - defer launch until user engages
@@ -184,14 +185,26 @@ func s:SyncBreakpoints(breakpoints)
   endfor
 endfunc
 
+
+func s:GetBreakpointAsList(str)
+  let bp_id = trim(substitute(a:str, '.*Breakpoint\s\([0-9]\)\(.*\)', '\1', ''))
+  echomsg 'bp_id: ' . bp_id
+  let colon_sep = trim(substitute(a:str, '.*at', '', ''))
+  let file_str = split(colon_sep, '\:')
+  echo 'file: ' . file_str[0] . ' ln: ' . file_str[1] . ' bp_id: ' . bp_id
+  return [file_str[0], file_str[1], bp_id]
+endfunc
+
+
 func s:UI_HighlightLine(res)
   " remove existing highlight
   let [filename, ln, bp_id] = s:GetBreakpointAsList(a:res)
+  call sign_unplace('process')
   " open file
   " TODO get fullname from filename, vsp or split based on defaults
   " open files if not in buffer?
   exe 'drop ' . filename . ' '
-  exe 'sign place 2 line=' . ln . ' name=lldb_active file=' . filename
+  call sign_place(bp_id, 'process', 'lldb_active', filename, {'lnum': ln})
 endfunc
 
 
@@ -203,8 +216,8 @@ func! g:Tapi_LldbOutCb(bufnum, args)
   "
   " Process
   "
-  if resp =~? 'Process' && resp !~? 'invalid'
-    call s:UI_HighlightLine(a:args)
+  if resp =~? 'process' && resp !~? 'invalid\|exited\|finished'
+    call s:UI_HighlightLine(a:args[0])
 
   "
   " Breakpoint
