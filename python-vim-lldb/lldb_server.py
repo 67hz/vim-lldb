@@ -139,7 +139,6 @@ class LLDB(object):
         ids = []
         for b in self.target.breakpoint_iter():
             ids.append(b.GetID())
-
         return ids
 
     def getAllBreakpoints(self):

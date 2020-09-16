@@ -224,8 +224,7 @@ func s:UI_SyncBreakpoints(res)
 endfunc
 
 func s:UI_UpdateBreakpoint(res)
-  let bp_ids = trim(substitute(a:res[0], '.*\(\[.*\)', '\1', ''))
-  "let bp_ids = trim(substitute(a:str[0], '.*Breakpoint\s\([0-9]\)\(.*\)', '\1', ''))
+  let bp_ids = trim(substitute(a:res[0], '.*\(\[\)\(.*\)\(\]\)', '\2', ''))
   echomsg 'remove bp placeholder: ' . bp_ids
 endfunc
 
