@@ -33,7 +33,7 @@ def parseArgs(data):
 
 """ Escape sequence to trap into Vim's cb channel.
     See :help term_sendkeys for job -> vim communication """
-def vimOutCb(res, pid, state):
+def vimOutCb(res):
     print('\033]51;["call","Tapi_LldbOutCb", ["{}"]]\007'.format(escapeQuotes(res)))
 
 def vimErrCb(err):
@@ -134,22 +134,28 @@ class LLDB(object):
         print('filename: {} line_nr: {}'.format(filename, line_nr))
         self.getAllBreakpoints()
 
+    " return list of only breakpoint ids: [1, 3, 4, ...] """
+    def getBreakpointIdsAsList(self):
+        ids = []
+        for b in self.target.breakpoint_iter():
+            ids.append(b.GetID())
+
+        return ids
+
     def getAllBreakpoints(self):
         """ maintain breakpoints for easier access for outsiders, e.g, vim """
         for b in self.target.breakpoint_iter():
             print(b)
-            print('ID: ', b.GetID())
-            print('loc@idx: ', b.GetLocationAtIndex(b.GetID()))
             loc = b.FindLocationByID(b.GetID())
-            print('LOC: ', loc)
             """
                 regex file, line from breakpoint
                 else
                     regex from GetLineEntry
                 """
             if loc:
+                print('Loc: ', loc)
                 filename = loc.GetAddress().GetLineEntry()
-                print("Abs file path: %s"% filename)
+                print('Abs file path: ', filename)
 
 
 
@@ -186,8 +192,8 @@ def startIOLoop(outcb, errcb):
             if 'bp_frame' in str(data):
                 dbg.getFrame()
                 continue
-            if 'history' in str(data):
-                dbg.getCommandHistory()
+            if 'bp_ids' in str(data):
+                outcb('breakpoint all-ids: %s'% dbg.getBreakpointIdsAsList())
                 continue
 
         if len(data) < 1:
@@ -197,7 +203,7 @@ def startIOLoop(outcb, errcb):
 
         if res.Succeeded():
             output = res.GetOutput()
-            outcb(output, dbg.getPid(), dbg.getProcessState())
+            outcb(output)
         else:
             output = res.GetError()
             errcb(output)

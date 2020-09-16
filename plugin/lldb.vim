@@ -204,8 +204,8 @@ func s:ToggleBreakpoint()
 
       call s:SendCommand('breakpoint delete ' . bp_ids[0])
     else
-    " TODO if deleting with more than one bp location at cursor, prompt user to
-    " select id to delete
+    " TODO if deleting with more than one bp location under cursor, prompt user to
+    " select id to delete: could be a quickfix window or prompt?
     endif
   else
     " no match so toggle on
@@ -219,10 +219,14 @@ func s:UI_AddBreakpoint(res)
   exe 'sign place 2 line=' . line_nr . ' name=lldb_marker file=' . filename
 endfunc
 
-func s:UI_RemoveBreakpoint(res)
-  " TODO sync s:breakpoints against 'breakpoint list' or use 'history'
-  call s:SendCommand('bp_all --internal')
-  echomsg 'remove bp placeholder'
+func s:UI_SyncBreakpoints(res)
+  call s:SendCommand('bp_ids --internal')
+endfunc
+
+func s:UI_UpdateBreakpoint(res)
+  let bp_ids = trim(substitute(a:res[0], '.*\(\[.*\)', '\1', ''))
+  "let bp_ids = trim(substitute(a:str[0], '.*Breakpoint\s\([0-9]\)\(.*\)', '\1', ''))
+  echomsg 'remove bp placeholder: ' . bp_ids
 endfunc
 
 
@@ -253,8 +257,11 @@ func! g:Tapi_LldbOutCb(bufnum, args)
   " Breakpoint
   "
   elseif a:args[0] =~? 'Breakpoint' && a:args[0] !~? 'warning\|pending\|current'
-    if a:args[0] =~? 'deleted'
-      call s:UI_RemoveBreakpoint(a:args)
+    if a:args[0] =~? 'all-ids'
+      call s:UI_UpdateBreakpoint(a:args)
+
+    elseif a:args[0] =~? 'deleted'
+      call s:UI_SyncBreakpoints(a:args)
     else
       " update breakpoint in UI
       call s:UI_AddBreakpoint(a:args)
