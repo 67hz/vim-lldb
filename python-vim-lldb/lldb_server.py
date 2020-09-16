@@ -134,32 +134,36 @@ class LLDB(object):
         print('filename: {} line_nr: {}'.format(filename, line_nr))
         self.getAllBreakpoints()
 
-    " return dict of breakpoint ids: [1, 3, 4, ...] """
-    " TODO add getter for full dictionary incl. filename:line_nr = [id, id, ...] """
-    def getBreakpointIdsAsList(self):
-        id_dict = {}
+    def getActiveBreakpointIDs(self):
+        """ return all active bp id's as list """
         ids = []
+        for bp in self.target.breakpoint_iter():
+            ids.append(bp.GetID())
 
-        for b in self.target.breakpoint_iter():
-            ids.append(b.GetID())
+        return {"ids": ids}
 
-        id_dict["ids"] = ids
+    def getBreakpointIdsAsDict(self):
+        """ REVIEW is it neccessary to store sub-ids of breakpoint, e.g. 1.2
+          id_dict = {filename: {line_nr: [id, id, ...]}} """
+        id_dict = {}
+
+        for bp in self.target.breakpoint_iter():
+            for bl in bp:
+                loc = bl.GetAddress().GetLineEntry()
+                key = loc.GetFileSpec() + ':' + loc.GetLine()
+                if id_dict.has_key(key):
+                    id_dict[key].append(bp.getID())
+                else:
+                    id_dict[key] = [bp.getID()]
+
+                #print('file: ', loc.GetFileSpec())
+                #print('line: ', loc.GetLine())
+                #print('isValid: ', loc.IsValid())
+                #print('id: ' , bp.GetID())
+
         return id_dict
 
-    def getAllBreakpoints(self):
-        """ maintain breakpoints for easier access for outsiders, e.g, vim """
-        for b in self.target.breakpoint_iter():
-            print(b)
-            loc = b.FindLocationByID(b.GetID())
-            """
-                regex file, line from breakpoint
-                else
-                    regex from GetLineEntry
-                """
-            if loc:
-                print('Loc: ', loc)
-                filename = loc.GetAddress().GetLineEntry()
-                print('Abs file path: ', filename)
+
 
 
 
@@ -187,17 +191,11 @@ def startIOLoop(outcb, errcb):
         """ internal commands skip lldb's CI """
         if flag_internal in data:
             data.replace(flag_internal, '')
-            if 'bp_all' in data:
-                dbg.getAllBreakpoints()
-                continue
-            if 'bp_at' in str(data):
-                dbg.getBreakpointAtFileLine(data)
-                continue
             if 'bp_frame' in str(data):
                 dbg.getFrame()
                 continue
             if 'bp_ids' in str(data):
-                outcb('breakpoint all-ids', dbg.getBreakpointIdsAsList())
+                outcb('breakpoint all-ids', dbg.getActiveBreakpointIDs())
                 continue
 
         if len(data) < 1:

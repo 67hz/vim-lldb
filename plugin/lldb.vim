@@ -143,7 +143,10 @@ func s:GetBreakpointAsList(str)
 endfunc
 
 " TODO decide on relative or abs paths, add breakpoints_by_name {}
+" {'file:linenr': [id1, id2, ...], ...}
 let s:breakpoints = {}
+
+" {bp_id: 'file:linenr', bp_id2: 'file:linenr', ...}
 let s:breakpoint_location_by_id = {}
 
 func s:breakpoints_hash_key(filename, line_nr)
@@ -168,8 +171,8 @@ func s:breakpoints._getIDs(filename, line_nr)
   return []
 endfunc
 
-" breakpoints = {filename:line_nr: [id, id, ...]
-func s:breakpoints._add(filename, line_nr, bp_id)
+" add to both breakpoints{} and breakpoint_location_by_id {}
+func s:breakpointsAdd(filename, line_nr, bp_id)
   let file_ln_key = s:breakpoints_hash_key(a:filename, a:line_nr)
   if has_key(s:breakpoints, file_ln_key)
     " add bp id if does not exist under file:line_nr
@@ -181,12 +184,12 @@ func s:breakpoints._add(filename, line_nr, bp_id)
     let s:breakpoints[file_ln_key] = [a:bp_id]
   endif
 
-  " always update location for id
+  " always update breakpoint_location_by_id dict with new id
   let s:breakpoint_location_by_id[a:bp_id] = file_ln_key
 endfunc
 
-func s:breakpoints._remove(filename, line_nr)
-  let idx = s:breakpoints._getIDs(a:filename, a:line_nr)
+func s:breakpointsRemove(filename, line_nr)
+  "let idx = s:breakpoints._getIDs(a:filename, a:line_nr)
   call remove(s:breakpoints[a:filename], idx)
 endfunc
 
@@ -219,29 +222,27 @@ endfunc
 
 func s:UI_AddBreakpoint(res)
   let [filename, line_nr, bp_id] = s:GetBreakpointAsList(a:res)
-  call s:breakpoints._add(filename, line_nr, bp_id)
+  call s:breakpointsAdd(filename, line_nr, bp_id)
   exe 'sign place 2 line=' . line_nr . ' name=lldb_marker file=' . filename
 endfunc
 
+" request all bp ids from lldb
 func s:GetBreakpointIds()
   call s:SendCommand('bp_ids --internal')
 endfunc
 
+" update internal dicts then iterate over updated dict to place bp's in UI
 func s:UI_UpdateBreakpoints(breakpoints)
   let bp_list = js_decode(a:breakpoints)
 
-  "echomsg 'bp_list["ids"] -> ' . join(bp_list["ids"])
-  "echomsg 'idx: ' . index(bp_list["ids"],  3)
   " consider filter() to mod dict
   for [id, file_linenr] in items(s:breakpoint_location_by_id)
-    echomsg 'id: ' . id . ' file_ln: ' . file_linenr
+    " if breakpoint is in vim's dict that is not available in lldb,
+    " remove it
     if index(bp_list["ids"], str2nr(id)) == -1
-      echomsg "need to delete id:" . id
+      echomsg "need to delete id from UI:" . id
+      "call s:breakpointsRemove(id)
     endif
-  endfor
-
-  for bp in bp_list["ids"]
-    echomsg 'remove bp placeholder: ' . bp
   endfor
 endfunc
 
@@ -274,11 +275,12 @@ func! g:Tapi_LldbOutCb(bufnum, args)
   " Breakpoint
   "
   elseif resp =~? 'Breakpoint' && resp !~? 'warning\|pending\|current'
-    if resp =~? 'all-ids'
-      call s:UI_UpdateBreakpoints(a:args[1])
-
-    elseif resp =~? 'deleted'
+    if resp =~? 'deleted'
+      " breakpoint deleted so request all ids and then sync with vim's dict
       call s:GetBreakpointIds()
+    elseif resp =~? 'all-ids'
+      " all bp ids returned, so update UI
+      call s:UI_UpdateBreakpoints(a:args[1])
     else
       " update breakpoint in UI
       call s:UI_AddBreakpoint(resp)
