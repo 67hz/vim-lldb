@@ -144,7 +144,7 @@ endfunc
 
 " TODO decide on relative or abs paths, add breakpoints_by_name {}
 let s:breakpoints = {}
-let s:breakpoint_locations = {}
+let s:breakpoint_location_by_id = {}
 
 func s:breakpoints_hash_key(filename, line_nr)
   return a:filename . ':' . a:line_nr
@@ -180,6 +180,9 @@ func s:breakpoints._add(filename, line_nr, bp_id)
     " add a new entry for breakpoint id
     let s:breakpoints[file_ln_key] = [a:bp_id]
   endif
+
+  " always update location for id
+  let s:breakpoint_location_by_id[a:bp_id] = file_ln_key
 endfunc
 
 func s:breakpoints._remove(filename, line_nr)
@@ -227,12 +230,18 @@ endfunc
 func s:UI_UpdateBreakpoints(breakpoints)
   let bp_list = js_decode(a:breakpoints)
 
- " for [key, ids] in items(s:breakpointst)
- " endfor
+  "echomsg 'bp_list["ids"] -> ' . join(bp_list["ids"])
+  "echomsg 'idx: ' . index(bp_list["ids"],  3)
+  " consider filter() to mod dict
+  for [id, file_linenr] in items(s:breakpoint_location_by_id)
+    echomsg 'id: ' . id . ' file_ln: ' . file_linenr
+    if index(bp_list["ids"], str2nr(id)) == -1
+      echomsg "need to delete id:" . id
+    endif
+  endfor
 
   for bp in bp_list["ids"]
     echomsg 'remove bp placeholder: ' . bp
-    " TODO remove any breakpoints not in bp_list
   endfor
 endfunc
 
@@ -308,4 +317,13 @@ endfunc
 
 call s:StartDebug_common()
 
+func! s:TestSuite()
+    call s:SendCommand('file par')
+    call s:SendCommand('b main')
+    call s:SendCommand('breakpoint set --file parallel_array.c --line 23')
+    call s:SendCommand('breakpoint set --file parallel_array.c --line 24')
+    call s:SendCommand('breakpoint delete 2')
+endfunc
+
+"call s:TestSuite()
 call s:restore_cpo()

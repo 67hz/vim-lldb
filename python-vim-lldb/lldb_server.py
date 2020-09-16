@@ -134,7 +134,7 @@ class LLDB(object):
         print('filename: {} line_nr: {}'.format(filename, line_nr))
         self.getAllBreakpoints()
 
-    " return list of only breakpoint ids: [1, 3, 4, ...] """
+    " return dict of breakpoint ids: [1, 3, 4, ...] """
     " TODO add getter for full dictionary incl. filename:line_nr = [id, id, ...] """
     def getBreakpointIdsAsList(self):
         id_dict = {}
