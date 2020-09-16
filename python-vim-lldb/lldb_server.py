@@ -135,35 +135,28 @@ class LLDB(object):
         self.getAllBreakpoints()
 
     def getActiveBreakpointIDs(self):
-        """ return all active bp id's as list """
+        """ return all active bp id's as list [id, id, ...] """
         ids = []
         for bp in self.target.breakpoint_iter():
             ids.append(bp.GetID())
 
         return {"ids": ids}
 
-    def getBreakpointIdsAsDict(self):
-        """ REVIEW is it neccessary to store sub-ids of breakpoint, e.g. 1.2
-          id_dict = {filename: {line_nr: [id, id, ...]}} """
+    def getBreakpointDict(self):
+        """ REVIEW is it necessary to store sub-ids of breakpoint, e.g. 1.2
+          id_dict = {'filename:line_nr': [id, id, ...]} """
         id_dict = {}
 
         for bp in self.target.breakpoint_iter():
             for bl in bp:
                 loc = bl.GetAddress().GetLineEntry()
-                key = loc.GetFileSpec() + ':' + loc.GetLine()
-                if id_dict.has_key(key):
-                    id_dict[key].append(bp.getID())
+                key = str(loc.GetFileSpec()) + ':' + str(loc.GetLine())
+                if key in id_dict:
+                    id_dict[key].append(bp.GetID())
                 else:
-                    id_dict[key] = [bp.getID()]
-
-                #print('file: ', loc.GetFileSpec())
-                #print('line: ', loc.GetLine())
-                #print('isValid: ', loc.IsValid())
-                #print('id: ' , bp.GetID())
+                    id_dict[key] = [bp.GetID()]
 
         return id_dict
-
-
 
 
 
@@ -196,6 +189,9 @@ def startIOLoop(outcb, errcb):
                 continue
             if 'bp_ids' in str(data):
                 outcb('breakpoint all-ids', dbg.getActiveBreakpointIDs())
+                continue
+            if 'bp_sync' in str(data):
+                outcb('breakpoint updated', dbg.getBreakpointDict())
                 continue
 
         if len(data) < 1:
