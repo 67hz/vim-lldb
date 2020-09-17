@@ -130,12 +130,11 @@ func s:InstallCommands()
   let save_cpo = &cpo
   set cpo&vim
 
-  " TODO add breakpoint with args
-  "command -nargs=? Lbreakpoint call s:Breakpoint(<q-args>)
   command -nargs=? Break call s:ToggleBreakpoint()
   command Lldb call win_gotoid(s:lldbwin)
-  command Lstep call s:SendCommand('step')
-  command Lnext call s:SendCommand('next')
+  command LStep call s:SendCommand('step')
+  command LNext call s:SendCommand('next')
+  command LFinish call s:SendCommand('finish --internal')
 
   let &cpo = save_cpo
 
