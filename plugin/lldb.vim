@@ -1,11 +1,10 @@
-"
+""
 " LLDB debugger for Vim
 "
-" TODO:
-" 
-" see built-in functions for user lists, complete_add
-" getbufinfo, getchangelist
+" Author: Aaron Hinojosa <67hz@protonmail.com>
+" License: Same as Vim (see ":help license")
 "
+""
 
 let s:keepcpo = &cpo
 set cpo&vim
@@ -36,9 +35,10 @@ if (exists("g:lldb_enable") && g:lldb_enable == 0 || (exists("s:lldb_loaded")) )
 endif
 
 " Setup the python interpreter path
-let s:script_dir = resolve(expand("<sfile>:p:h"))
+
 function! s:FindPythonScriptDir()
-  let base_dir = fnamemodify(s:script_dir, ':h')
+  let script_dir = resolve(expand("<sfile>:p:h"))
+  let base_dir = fnamemodify(script_dir, ':h')
   return base_dir . "/python-vim-lldb"
 endfunction
 
@@ -86,7 +86,8 @@ func! s:StartDebug_term()
        \ 'term_finish': 'close',
        \ 'hidden': 0,
        \ })
-
+ 
+  call term_setapi(s:ptybuf, "Lldbapi_")
   set modified
   let s:lldb_term_running = 1
 
@@ -220,7 +221,7 @@ func s:UI_HighlightLine(res)
 endfunc
 
 
-func! g:Tapi_LldbOutCb(bufnum, args)
+func! g:Lldbapi_LldbOutCb(bufnum, args)
   let resp = a:args[0]
   call ch_log('lldb> : ' . resp)
 
@@ -251,12 +252,12 @@ func! g:Tapi_LldbOutCb(bufnum, args)
   endif
 endfunc
 
-func! g:Tapi_LldbErrCb(bufnum, args)
+func! g:Lldbapi_LldbErrCb(bufnum, args)
   echohl WarningMsg | echo 'lldb: ' . a:args[0] | echohl None
   call ch_log('lldb> : ' . a:args[0])
 endfunc
 
-func! g:Tapi_LldbErrFatalCb(bufnum, args)
+func! g:Lldbapi_LldbErrFatalCb(bufnum, args)
   echohl WarningMsg | echo 'lldb: ' . a:args[0] | echohl None
   call ch_log('lldb> : ' . a:args[0])
   unlet! s:lldb_term_running

@@ -49,10 +49,10 @@ def parseArgs(data):
 """ Escape sequence to trap into Vim's cb channel.
     See :help term_sendkeys for job -> vim communication """
 def vimOutCb(res, data = ''):
-    print('\033]51;["call","Tapi_LldbOutCb", ["{}", "{}"]]\007'.format(escapeQuotes(res), data))
+    print('\033]51;["call","Lldbapi_LldbOutCb", ["{}", "{}"]]\007'.format(escapeQuotes(res), data))
 
 def vimErrCb(err):
-    print('\033]51;["call","Tapi_LldbErrCb",["{}"]]\007'.format(escapeQuotes(err)))
+    print('\033]51;["call","Lldbapi_LldbErrCb",["{}"]]\007'.format(escapeQuotes(err)))
 
 
 
@@ -239,7 +239,7 @@ def startIOLoop(outcb, errcb):
 
 # start LLDB interpreter if lldb was imported
 if not lldbImported:
-    print('\033]51;["call","Tapi_%s", ["%s"]]\007' %
+    print('\033]51;["call","Lldbapi_%s", ["%s"]]\007' %
             ('LldbErrFatalCb', 'Failed to import vim-lldb. Try setting g:lldb_python_interpreter_path=\'path/to/python\' in .vimrc. See README for help.',))
 else:
     startIOLoop(vimOutCb, vimErrCb)
