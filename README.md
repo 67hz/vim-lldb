@@ -15,8 +15,8 @@ System Requirements
 -------------------
 
 - Vim 8.2 or above
-- Vim compiled with '+terminal' support
-- Have `LLDB` installed and built against a [matching version of Python on the host](#verifying-python-support)*
+- Vim compiled with `+terminal` support
+- Have `LLDB` installed and built against a [matching version of Python on the host](#verifying-python-support)
 
 
 vim-lldb Commands
@@ -30,6 +30,8 @@ vim-lldb offers some convenience commands for easy mapping.
 | ---               | ---                                                                     |
 | `:help lldb`      | plugin specific documentation                                           |
 | `:LBreak`          | Toggle breakpoint under cursor                                |
+| `:LStep`          | Step |
+| `:LNext`          | Next
 | `:LInfo`          | Display system info (useful for troubleshooting setup)         | 
 
 
@@ -92,7 +94,5 @@ will allow LLDB to launch properly:
 ```vim
   let g:lldb_python_interpreter_path='/usr/bin/python3'
 ```
-
-
 
 If Python versions are mismatched, either recompile Python to match the exact version as LLDB or vice-versa. See [lldb caveats](https://lldb.llvm.org/resources/caveats.html) for details.
