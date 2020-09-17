@@ -1,4 +1,4 @@
-*lldb.txt* vim-lldb	For Vim version 8.1	Last change: 2020 JSept 20
+*lldb.txt* vim-lldb	For Vim version 7.3	Last change: 2020 JSept 20
 VIM-LLDB TABLE OF CONTENTS 			*vim-lldb* *lldb*
 ===============================================================================
 

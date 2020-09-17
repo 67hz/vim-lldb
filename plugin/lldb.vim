@@ -121,8 +121,6 @@ endfunc
 " step-related
 " watch vars
 " bt
-"
-" maybe:
 " attach
 " launch
 "
@@ -130,7 +128,7 @@ func s:InstallCommands()
   let save_cpo = &cpo
   set cpo&vim
 
-  command -nargs=? Break call s:ToggleBreakpoint()
+  command -nargs=? LBreak call s:ToggleBreakpoint()
   command Lldb call win_gotoid(s:lldbwin)
   command LStep call s:SendCommand('step')
   command LNext call s:SendCommand('next')
@@ -142,7 +140,7 @@ func s:InstallCommands()
 endfunc
 
 func s:MapCommands()
-  nnoremap <C-l> :Break<CR>
+  nnoremap <C-l> :LBreak<CR>
 
   " terminal-only
   tnoremap <C-l> clear --internal<CR>
@@ -151,13 +149,18 @@ endfunc
 
 func s:DeleteCommands()
   delcommand Lldb
-  delcommand Break
+  delcommand LStep
+  delcommand LNext
+  delcommand LFinish
+  delcommand LBreak
 endfunc
 
 func s:SendCommand(cmd)
   call ch_log('sending to lldb: ' . a:cmd)
-  " TODO call clear line before cmd in case user typed input into prompt
+  " TODO clear line before cmd in case user typed input into prompt
   " without executing
+  " check if term_getline contains user text and thenn
+  " call term_sendkeys(s:ptybuf, 'wipe --internal ' . "\r")
   call term_sendkeys(s:ptybuf, a:cmd . "\r")
 endfunc
 

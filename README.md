@@ -29,7 +29,7 @@ vim-lldb offers some convenience commands for easy mapping.
 | Command           | List                                                                    |
 | ---               | ---                                                                     |
 | `:help lldb`      | plugin specific documentation                                           |
-| `:Break`          | Toggle breakpoint under cursor                                |
+| `:LBreak`          | Toggle breakpoint under cursor                                |
 
 
 Customization
@@ -63,13 +63,13 @@ Verify LLDB's Python path by launching the Python interpreter in LLDB and checki
     (lldb) script import sys; print(sys.executable)
     /usr/bin/python3
 
-In the above example output, `/usr/bin/python3` is the path `LLDB` requires to launch. In this setup, the proper `.vimrc` setting:
+In the above example output, `/usr/bin/python3` is the path `LLDB` requires to launch. In this setup, the proper `.vimrc` setting 
+will allow lldb to launch properly:
 
 ```vim
   let g:lldb_python_interpreter_path='/usr/bin/python3'
 ```
 
-Will allow lldb to launch properly.
 
 
 If Python versions are mismatched, either recompile Python to match the exact version as LLDB or vice-versa. See [lldb caveats](https://lldb.llvm.org/resources/caveats.html) for details.
