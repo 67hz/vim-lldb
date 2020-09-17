@@ -6,7 +6,7 @@ SBTarget for breakpoint iterator
 """
 from __future__ import print_function
 
-import os
+from os import system, name
 import sys
 import re
 import lldb_path
@@ -21,6 +21,20 @@ except ImportError:
 
 
 """ Free methods """
+
+def clear():
+    # windows
+    if name == 'nt':
+        _ = system('cls')
+    else:
+        _ = system('clear')
+
+def backline(i):
+    CURSOR_UP = '\x1b[1A'
+    ERASE_LINE = '\x1b[2K'
+    while i > 0:
+        print(CURSOR_UP + ERASE_LINE)
+        i -= 1
 
 def escapeQuotes(res):
     res = escape_ansi(res.encode("utf-8", "replace"))
@@ -189,6 +203,8 @@ def startIOLoop(outcb, errcb):
 
         """ internal commands skip lldb's CI """
         if flag_internal in data:
+            backline(1)
+
             data.replace(flag_internal, '')
             if 'bp_frame' in str(data):
                 dbg.getFrame()
