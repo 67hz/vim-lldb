@@ -147,7 +147,7 @@ func s:MapCommands()
 
   " terminal-only
   tnoremap <C-l> clear --internal<CR>
-  tnoremap <C-c> wipe --internal<CR>
+  "tnoremap <C-c> wipe --internal<CR>
 endfunc
 
 func s:DeleteCommands()
