@@ -62,7 +62,6 @@ endfunc
 " TODO: handle updates common to all lldb responses
 " may not be needed if handling updates on an individual basis
 func s:BufRead()
-  "echomsg 'BufRead'
 endfunc
 
 
@@ -153,21 +152,24 @@ func s:ToggleBreakpoint()
   let hash_key = s:breakpoints_hash_key(filename, line_nr)
 
   if (empty(s:breakpoints))
+    " add breakpoint if none exist
     call s:SendCommand('breakpoint ' . arg_string)
-  else
-    " if bp exists at location
-    if has_key(s:breakpoints, hash_key)
-      for id in s:breakpoints[hash_key]
-        if len(s:breakpoints[hash_key]) > 1
-          echomsg 'prompt user for ids placeholder'
-        else
-          " only 1 id at location under cursor so delete it
-          call s:SendCommand('breakpoint delete ' . id)
-        endif
-      endfor
+
+  elseif has_key(s:breakpoints, hash_key)
+    " if bp exists at location toggle off
+    if len(s:breakpoints[hash_key]) > 1
+      let id = inputlist(['Multiple breakpoints at cursor. Choose id to delete:', join(s:breakpoints[hash_key])])
+      if id < 1
+        " user cancelled delete so do nothing
+        return
+      endif
     else
-      call s:SendCommand('breakpoint ' . arg_string)
+      " only 1 id at location under cursor so set id to this
+      let id = s:breakpoints[hash_key][0]
     endif
+      call s:SendCommand('breakpoint delete ' . id)
+  else
+    call s:SendCommand('breakpoint ' . arg_string)
   endif
 endfunc
 
@@ -189,7 +191,6 @@ endfunc
 
 func s:GetBreakpointAsList(str)
   let bp_id = trim(substitute(a:str, '.*Breakpoint\s\([0-9]\)\(.*\)', '\1', ''))
-  echomsg 'bp_id: ' . bp_id
   let colon_sep = trim(substitute(a:str, '.*at', '', ''))
   let file_str = split(colon_sep, '\:')
   return [file_str[0], file_str[1], bp_id]
@@ -217,7 +218,6 @@ endfunc
 
 func! g:Tapi_LldbOutCb(bufnum, args)
   let resp = a:args[0]
-  echomsg 'lldb args: ' . resp
   call ch_log('lldb> : ' . resp)
 
   "
@@ -248,12 +248,12 @@ func! g:Tapi_LldbOutCb(bufnum, args)
 endfunc
 
 func! g:Tapi_LldbErrCb(bufnum, args)
-  echohl WarningMsg | echo 'lldb error: ' . a:args[0] | echohl None
+  echohl WarningMsg | echo 'lldb: ' . a:args[0] | echohl None
   call ch_log('lldb> : ' . a:args[0])
 endfunc
 
 func! g:Tapi_LldbErrFatalCb(bufnum, args)
-  echohl WarningMsg | echo 'lldb error: ' . a:args[0] | echohl None
+  echohl WarningMsg | echo 'lldb: ' . a:args[0] | echohl None
   call ch_log('lldb> : ' . a:args[0])
   unlet! s:lldb_term_running
   call s:DeleteCommands()
