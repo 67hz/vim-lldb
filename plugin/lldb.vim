@@ -281,5 +281,5 @@ func! s:TestSuite()
     call s:SendCommand('breakpoint delete 2')
 endfunc
 
-call s:TestSuite()
+"call s:TestSuite()
 call s:restore_cpo()
