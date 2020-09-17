@@ -22,8 +22,6 @@ System Requirements
 vim-lldb Commands
 -----------------
 
-All `LLDB` are supported in vim-lldb.
-
 For a complete list of commands, see [gdb to lldb map](https://lldb.llvm.org/use/map.html)
 
 vim-lldb offers some convenience commands for easy mapping.
