@@ -65,6 +65,8 @@ func! s:GetPythonPath()
       " got a valid value back from lldb's output
       let g:lldb_python_interpreter_path = lldb_python_path
     endif
+
+    return g:lldb_python_interpreter_path
   else
     " or use the user's value from .vimrc if it exists
     return g:lldb_python_interpreter_path
@@ -119,9 +121,10 @@ func! s:StartDebug_term()
   if (exists("s:lldb_term_running"))
     return
   endif
+  let cmd = python_path . ' ' . g:vim_lldb_pydir . '/lldb_server.py'
 
   " lldb server launched in new terminal
-  let s:ptybuf = term_start(python_path . ' ' . g:vim_lldb_pydir . '/lldb_server.py', {
+  let s:ptybuf = term_start(cmd, {
        \ 'term_name': 'lldb_server',
        \ 'vertical': s:vertical,
        \ 'term_finish': 'close',
