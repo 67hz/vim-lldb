@@ -192,7 +192,6 @@ func s:GetBreakpointAsList(str)
   echomsg 'bp_id: ' . bp_id
   let colon_sep = trim(substitute(a:str, '.*at', '', ''))
   let file_str = split(colon_sep, '\:')
-  echo 'file: ' . file_str[0] . ' ln: ' . file_str[1] . ' bp_id: ' . bp_id
   return [file_str[0], file_str[1], bp_id]
 endfunc
 
@@ -224,7 +223,7 @@ func! g:Tapi_LldbOutCb(bufnum, args)
   "
   " Process
   "
-  if resp =~? 'process' && resp !~? 'invalid\|exited\|finished'
+  if resp =~? 'process' && resp !~? 'invalid\|exited\|finished\|breakpoint'
     call s:GetAbsFilePathFromFrame()
 
   elseif resp =~? 'current file'
@@ -233,7 +232,7 @@ func! g:Tapi_LldbOutCb(bufnum, args)
   "
   " Breakpoint
   "
-  elseif resp =~? 'Breakpoint' && resp !~? 'warning\|pending\|current'
+  elseif resp =~? 'Breakpoint' && resp !~? 'warning\|pending\|current\|process'
     if resp =~? 'updated'
       call s:SyncBreakpoints(a:args[1])
     else

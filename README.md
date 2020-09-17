@@ -7,21 +7,10 @@ LLDB debugging in Vim.
 Installation
 ------------
 
-### Using Vim's native package manager is recommended
+### Using Vim's native package manager is the recommended installation
 
 See `:help packages` for details 
 
-### Using [vim-plug](https://github.com/junegunn/vim-plug)
-
-```vim
-Plug 'lldb-tools/vim-lldb'
-```
-
-### Using [vundle](https://github.com/VundleVim/Vundle.Vim)
-
-```vim
-Plugin 'lldb-tools/vim-lldb'
-```
 
 System Requirements
 -------------------

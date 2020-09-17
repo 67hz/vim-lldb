@@ -25,6 +25,7 @@ except ImportError:
 def escapeQuotes(res):
     res = escape_ansi(res.encode("utf-8", "replace"))
     res = str(res.decode("utf-8"))
+    res = res.replace('"', '\\\"')
     return res
 
 def parseArgs(data):
@@ -33,7 +34,7 @@ def parseArgs(data):
 
 """ Escape sequence to trap into Vim's cb channel.
     See :help term_sendkeys for job -> vim communication """
-def vimOutCb(res, data = {}):
+def vimOutCb(res, data = ''):
     print('\033]51;["call","Tapi_LldbOutCb", ["{}", "{}"]]\007'.format(escapeQuotes(res), data))
 
 def vimErrCb(err):
