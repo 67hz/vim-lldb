@@ -195,16 +195,21 @@ func s:GetBreakpointAsList(str)
   return [file_str[0], file_str[1], bp_id]
 endfunc
 
+func s:GetAbsFilePathFromFrame()
+  call s:SendCommand('frame_path --internal')
+endfunc
 
 func s:UI_HighlightLine(res)
   " remove existing highlight
   let [filename, ln, bp_id] = s:GetBreakpointAsList(a:res)
   call sign_unplace('process')
   " open file
-  " TODO get fullname from filename, vsp or split based on defaults
-  " open files if not in buffer?
+  " TODO vsp or split based on defaults
+  " open files if not in buffer? make an option
   exe 'drop ' . filename . ' '
   call sign_place(bp_id, 'process', 'lldb_active', filename, {'lnum': ln})
+  " TODO place cursor back on lldb terminal
+
 endfunc
 
 
@@ -217,7 +222,10 @@ func! g:Tapi_LldbOutCb(bufnum, args)
   " Process
   "
   if resp =~? 'process' && resp !~? 'invalid\|exited\|finished'
-    call s:UI_HighlightLine(a:args[0])
+    call s:GetAbsFilePathFromFrame()
+
+  elseif resp =~? 'current file'
+    call s:UI_HighlightLine(a:args[1])
 
   "
   " Breakpoint

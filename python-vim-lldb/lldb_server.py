@@ -122,16 +122,21 @@ class LLDB(object):
         return res
 
     def getFrame(self):
-        #frame = lldb.thread.GetSelectedFrame()
         for thread in self.process:
             for frame in thread:
                 print(frame)
+
+    def getLineEntryFromFrame(self):
+        """ return full path from frame """
+        for thread in self.process:
+            frame = thread.GetSelectedFrame()
+            path = frame.GetPCAddress().GetLineEntry()
+            return path
 
     def getBreakpointAtFileLine(self, data):
         args = parseArgs(data)
         filename = args[1]
         line_nr = args[2]
-        print('filename: {} line_nr: {}'.format(filename, line_nr))
         self.getAllBreakpoints()
 
     def getActiveBreakpointIDs(self):
@@ -192,6 +197,9 @@ def startIOLoop(outcb, errcb):
                 continue
             if 'bp_sync' in str(data):
                 outcb('breakpoint updated', dbg.getBreakpointDict())
+                continue
+            if 'frame_path' in str(data):
+                outcb('current file', dbg.getLineEntryFromFrame())
                 continue
 
         if len(data) < 1:
