@@ -78,10 +78,10 @@ if (exists("g:lldb_enable") && g:lldb_enable == 0 || (exists("s:lldb_loaded")) )
   finish
 endif
 
+let s:script_dir = fnamemodify(resolve(expand("<sfile>:p")), ':h:h')
 " Setup the python interpreter path
 func! s:GetPythonScriptDir()
-  let script_dir = expand("<sfile>:p:h:h")
-  return script_dir . "/python-vim-lldb"
+  return s:script_dir . "/python-vim-lldb"
 endfunc
 
 " set up UI defaults
