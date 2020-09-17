@@ -20,6 +20,10 @@ if(v:version < 801)
   call confirm('ERROR: lldb requires vim > v8.1.0. lldb debugging is disabled.')
   call s:restore_cpo()
   finish
+elseif(!has('terminal'))
+  call confirm('ERROR: lldb requires terminal support in vim')
+  call s:restore_cpo()
+  finish
 endif 
 
 if (!exists("g:lldb_python_interpreter_path"))
