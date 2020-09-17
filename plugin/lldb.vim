@@ -38,35 +38,38 @@ elseif(!has('terminal'))
 endif 
 
 func! s:GetLLDBPath()
-  if exists('g:lldb_path')
-    return g:lldb_path
-  else
-    return 'lldb'
+  if !exists('g:lldb_path')
+    let g:lldb_path = 'lldb'
   endif
+  return g:lldb_path
 endfunc
 
-func! s:GetLLDBPythonPath()
+func! s:GetPythonPathFromLLDB()
   let lldb_exec = s:GetLLDBPath()
   :silent let path = systemlist(lldb_exec . ' -b -o "script import sys; print(sys.executable)"')
   if len(path) < 1
-    " did not get a valid python path from g:lldb_path so set lldb to default path
-    let g:lldb_path = 'lldb'
     return ''
   else
+    " return python path from lldb's output
     return path[1]
   endif
 endfunc
 
-if (!exists("g:lldb_python_interpreter_path"))
-  let lldb_python_path = s:GetLLDBPythonPath()
-
-  if lldb_python_path == ''
-    " try default Python interpreter if lldb shell fails to return path
-    let g:lldb_python_interpreter_path = 'python'
+func! s:GetPythonPath()
+  if !exists("g:lldb_python_interpreter_path")
+    let lldb_python_path = s:GetPythonPathFromLLDB()
+    if lldb_python_path == ''
+      " try default Python interpreter if lldb shell fails to return path
+      let g:lldb_python_interpreter_path = 'python'
+    else
+      " got a valid value back from lldb's output
+      let g:lldb_python_interpreter_path = lldb_python_path
+    endif
   else
-    let g:lldb_python_interpreter_path = lldb_python_path
+    " or use the user's value from .vimrc if it exists
+    return g:lldb_python_interpreter_path
   endif
-endif
+endfun
 
 if (exists("g:lldb_enable") && g:lldb_enable == 0 || (exists("s:lldb_loaded")) )
   call s:restore_cpo()
@@ -80,9 +83,6 @@ func! s:FindPythonScriptDir()
   return base_dir . "/python-vim-lldb"
 endfunc
 let g:vim_lldb_pydir = s:FindPythonScriptDir()
-
-
-
 
 " set up UI defaults
 " lldb term - vertical
@@ -113,14 +113,15 @@ func! s:StartDebug_term()
   " comment out to remove logs
   "call ch_logfile('vim-lldb_logfile', 'w')
 
+  let python_path = s:GetPythonPath()
+
   " only 1 running instance allowed
   if (exists("s:lldb_term_running"))
     return
   endif
 
   " lldb server launched in new terminal
-  " TODO error check if launch fails?
-  let s:ptybuf = term_start(g:lldb_python_interpreter_path . ' ' . g:vim_lldb_pydir . '/lldb_server.py', {
+  let s:ptybuf = term_start(python_path . ' ' . g:vim_lldb_pydir . '/lldb_server.py', {
        \ 'term_name': 'lldb_server',
        \ 'vertical': s:vertical,
        \ 'term_finish': 'close',
@@ -128,7 +129,7 @@ func! s:StartDebug_term()
        \ })
  
   if s:ptybuf == 0
-    echohl WarningMsg g:lldb_python_interpreter_path . ' failed to open LLDB. Use g:lldb_python_interpreter_path to override Python path. See README for details.' | echohl None
+    echohl WarningMsg python_path . ' failed to open LLDB. Try `:LInfo` for plugin info and see README for details.' | echohl None
     return
   endif
 
@@ -204,10 +205,9 @@ endfunc
 
 " set bp to line under cursor in file
 func s:ToggleBreakpoint()
-  " abs
+  " absoluter filenames
   let filename = fnameescape(expand('%:p')) 
-  " relative - tail only
-  "let filename = fnameescape(expand('%:t'))
+
   let line_nr = line('.')
   let arg_string = 'set --file ' . filename . ' --line ' . line_nr
   let hash_key = s:breakpoints_hash_key(filename, line_nr)
@@ -217,7 +217,8 @@ func s:ToggleBreakpoint()
     call s:SendCommand('breakpoint ' . arg_string)
 
   elseif has_key(s:breakpoints, hash_key)
-    " if bp exists at location toggle off
+    " if bp exists at location toggle off (delete)
+
     if len(s:breakpoints[hash_key]) > 1
       let id = inputlist(['Multiple breakpoints at cursor. Choose id to delete:', join(s:breakpoints[hash_key])])
       if id < 1
@@ -225,11 +226,14 @@ func s:ToggleBreakpoint()
         return
       endif
     else
-      " only 1 id at location under cursor so set id to this
+      " only 1 id at location under cursor so set id
       let id = s:breakpoints[hash_key][0]
     endif
-      call s:SendCommand('breakpoint delete ' . id)
+    " now delete
+    call s:SendCommand('breakpoint delete ' . id)
   else
+
+    " no bp under cursor so add breakpoint 
     call s:SendCommand('breakpoint ' . arg_string)
   endif
 endfunc
@@ -322,7 +326,7 @@ endfunc
 
 func! s:LldbDebugInfo()
   let dbg_dict = {}
-  let dbg_dict["python path"] = s:GetLLDBPythonPath()
+  let dbg_dict["python path"] = s:GetPythonPath()
   let dbg_dict["lldb executable path"] = s:GetLLDBPath()
   echomsg 'LLDB Debug info'
   echomsg string(dbg_dict)
@@ -341,13 +345,4 @@ endfunc
 
 call s:StartDebug_common()
 
-func! s:TestSuite()
-    call s:SendCommand('file par')
-    call s:SendCommand('b main')
-    call s:SendCommand('breakpoint set --file parallel_array.c --line 23')
-    call s:SendCommand('breakpoint set --file parallel_array.c --line 24')
-    call s:SendCommand('breakpoint delete 2')
-endfunc
-
-"call s:TestSuite()
 call s:restore_cpo()

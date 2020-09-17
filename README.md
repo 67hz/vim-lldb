@@ -79,7 +79,7 @@ If Vim warns that it is unable to load vim-lldb on launch, there may be mismatch
 Get information about the host paths to Python and LLDB:
 
 ```vim
-:call LInfo
+:LInfo
 ```
 
 Verify LLDB's Python path from the shell:
