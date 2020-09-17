@@ -79,12 +79,10 @@ if (exists("g:lldb_enable") && g:lldb_enable == 0 || (exists("s:lldb_loaded")) )
 endif
 
 " Setup the python interpreter path
-func! s:FindPythonScriptDir()
-  let script_dir = resolve(expand("<sfile>:p:h"))
-  let base_dir = fnamemodify(script_dir, ':h')
-  return base_dir . "/python-vim-lldb"
+func! s:GetPythonScriptDir()
+  let script_dir = expand("<sfile>:p:h:h")
+  return script_dir . "/python-vim-lldb"
 endfunc
-let g:vim_lldb_pydir = s:FindPythonScriptDir()
 
 " set up UI defaults
 " lldb term - vertical
@@ -116,12 +114,13 @@ func! s:StartDebug_term()
   "call ch_logfile('vim-lldb_logfile', 'w')
 
   let python_path = s:GetPythonPath()
+  let python_script_dir = s:GetPythonScriptDir()
 
   " only 1 running instance allowed
   if (exists("s:lldb_term_running"))
     return
   endif
-  let cmd = python_path . ' ' . g:vim_lldb_pydir . '/lldb_server.py'
+  let cmd = python_path . ' ' . python_script_dir . '/lldb_server.py'
 
   " lldb server launched in new terminal
   let s:ptybuf = term_start(cmd, {
