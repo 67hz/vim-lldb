@@ -7,8 +7,7 @@ LLDB debugging in Vim.
 Installation
 ------------
 
-### Using Vim's native package manager is the recommended installation
-
+The recommended install procedure for any plugin is to use Vim's native package manager.
 See `:help packages` for details 
 
 
@@ -16,64 +15,30 @@ System Requirements
 -------------------
 
 - Vim 8.2 or above
-- Have lldb installed against a [matching version of Python](#verifying-python-support)*
+- Vim compiled with '+terminal' support
+- Have `LLDB` installed and built against a [matching version of Python](#verifying-python-support)*
 
 
 vim-lldb Commands
---------
+-----------------
+
+All `LLDB` are supported in vim-lldb.
+
+For a complete list of commands, see [gdb to lldb map](https://lldb.llvm.org/use/map.html)
+
+vim-lldb offers some convenience commands for easy mapping.
 
 | Command           | List                                                                    |
 | ---               | ---                                                                     |
 | `:help lldb`      | plugin specific documentation                                           |
-| `:Lhelp`          | LLDB's built-in help system (i.e lldb 'help' command)                   |
-| `:Lscript help (lldb)` | Complete LLDB Python API reference                                |
-| `:L<tab>`         | tab completion through all LLDB commands                                |
-
-
-
-LLDB Commands
--------------
-
-Example commands:
-
-
-| Command           | Function                                                                    |
-| ---               | ---                                                                     |
-| `:Ltarget file`   | specify target file                                                     |
-| `:Lsettings set target.input-path <file>` | specify file input (exec < file)                |
-| `:Lbr`            | set breakpoint under cursor                                             |
-| `:Lrun`           | run                                                                     |
-| `:Lstep`          | source level single step in current thread                              |
-| `:Lnext`          | source level single step over in current thread                         |
-| `:Lthread step-in` | instruction level single step in current thread                         |
-| `:Lthread step-over` | instruction level single step-over in current thread                    |
-| `Lcontinue`       | Continue execution of all threads in the current process.               |
-| `:Lfinish`        | step out of currently selected frame                                    |
-| `:Lthread return <RETURN EXPRESSION>`| return immediately from currently selected frame with optional return value |
-| `:Lthread select 1`| select thread 1 as default thread for subsequent commands              |
-| `:Lbt all`         | thread backtrace all                                                   |
-| `:Lfr v`          | show args and local vars for current frame                              |
-| `:Lfr v -f x bar` | show contents of variable `bar` formatted as hex                        |
-| `:Lfr v -f b bar` | same as above with binary formatting                                    |
-| `:Lregister read`  | show the general purpose registers for current thread                  |
-| `:Lregister read rax rsp`  | show the contents of rax, rsp                                  |
-| `:Lregister write rax 123`  | write `123` into rax                                          |
-| `:Ldisassemble --name main` | disassemble any functions named `main`                        |
-| `:Ldisassemble --line` | disassemble current source line for current frame                  |
-| `:Ldisassemble --mixed` | disassemble with mixed mode                                       |
-
-
-
-For a complete list of commands, see [gdb to lldb map](https://lldb.llvm.org/use/map.html)
+| `:Break`          | Toggle breakpoint under cursor                                |
 
 
 Customization
 -------------
 
-### Global options
-
 ```vim
-" set python interpereter path
+" set python interpereter path - this is used to launch lldb
 let g:lldb_python_interpreter_path = 'usr/bin/python'
 ```
 
@@ -82,27 +47,15 @@ let g:lldb_python_interpreter_path = 'usr/bin/python'
 let g:lldb_enable = 1
 ```
 
-```vim
-" set lldb to async, default is 1 {async}, 0 {sync}
-let g:lldb_async = 1
-```
-
-```vim
-" set lldb console output color
-:hi lldb_output ctermfg=green ctermbg=NONE guifg=green guibg=NONE
-" set breakpoint color
-:hi lldb_breakpoint ctermfg=white ctermbg=DarkGray guifg=white guibg=DarkGray
-```
-
 
 Verifying Python Support
 ------------------------
 
-This plugin leverages the `LLDB` module which requires Python support.
+This plugin leverages the `LLDB` module which requires Python support on the host system. Vim does not need to be
+compiled with Python support for the plugin to work. The plugin will launch the debugger instance in a built-in terminal using `python` as the interpreter. This should be [overridden](#customization) to point to the host's Python path if it differs.
 
 
-
-If Vim warns that it is unable to load vim-lldb on launch, there may be mismatched versions of Python running between `LLDB` and the system Python interpreter. Versions must match exactly.
+If Vim warns that it is unable to load vim-lldb on launch, there may be mismatched versions of Python running between `LLDB` and the system Python interpreter. Versions must match exactly. If LLDB was compiled for Python2, the interpreter path must point to the exact version of Python2 `LLDB` was compiled against.
  
 
 Verify LLDB's version of Python by launching the Python interpreter in LLDB: 
@@ -112,4 +65,3 @@ Verify LLDB's version of Python by launching the Python interpreter in LLDB:
 
 
 If Python versions are mismatched, either recompile Python to match the exact version as LLDB or vice-versa. See [lldb caveats](https://lldb.llvm.org/resources/caveats.html) for details.
-
