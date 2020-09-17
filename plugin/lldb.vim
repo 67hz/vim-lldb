@@ -14,6 +14,9 @@
 " * add windows support
 " * add prompt fallback if '-terminal'
 " * add GDB-like layouts for predefined UI setup (e.g., layout reg)
+" * use lldb's output to set python interpeter path if global vimrc override
+"     does not exists
+"     $> lldb -b -o "script import sys; print(sys.executable)"
 "
 ""
 

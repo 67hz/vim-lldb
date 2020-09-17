@@ -16,7 +16,7 @@ System Requirements
 
 - Vim 8.2 or above
 - Vim compiled with '+terminal' support
-- Have `LLDB` installed and built against a [matching version of Python](#verifying-python-support)*
+- Have `LLDB` installed and built against a [matching version of Python on the host](#verifying-python-support)*
 
 
 vim-lldb Commands
@@ -49,17 +49,27 @@ let g:lldb_enable = 1
 Verifying Python Support
 ------------------------
 
-This plugin leverages the `LLDB` module which requires Python support on the host system. Vim does not need to be
-compiled with Python support for the plugin to work. The plugin will launch the debugger instance in a built-in terminal using `python` as the interpreter. This should be [overridden](#customization) to point to the host's Python path if it differs.
+This plugin leverages the `LLDB` module which requires Python support on the host system. The plugin will launch the debugger instance in a built-in terminal using `python` as the interpreter. This should be [overridden](#customization) to point to the host's Python path if it is something other than `python`.
 
 
-If Vim warns that it is unable to load vim-lldb on launch, there may be mismatched versions of Python running between `LLDB` and the system Python interpreter. Versions must match exactly. If LLDB was compiled for Python2, the interpreter path must point to the exact version of Python2 `LLDB` was compiled against.
- 
+If Vim warns that it is unable to load vim-lldb on launch, there may be mismatched versions of Python running between `LLDB` and the system Python interpreter. Versions must match exactly.
 
-Verify LLDB's version of Python by launching the Python interpreter in LLDB: 
 
-    $> lldb -b -o "script import sys; print(sys.version)"
-    3.7.6 (default, ...)
+### Troubleshooting:
+
+Verify LLDB's Python path by launching the Python interpreter in LLDB and checking the executable:
+
+    $> lldb -b -o "script import sys; print(sys.executable)"
+    (lldb) script import sys; print(sys.executable)
+    /usr/bin/python3
+
+In the above example output, `/usr/bin/python3` is the path `LLDB` requires to launch. In this setup, the proper `.vimrc` setting:
+
+```vim
+  let g:lldb_python_interpreter_path='/usr/bin/python3'
+```
+
+Will allow lldb to launch properly.
 
 
 If Python versions are mismatched, either recompile Python to match the exact version as LLDB or vice-versa. See [lldb caveats](https://lldb.llvm.org/resources/caveats.html) for details.

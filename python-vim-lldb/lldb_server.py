@@ -221,6 +221,8 @@ def startIOLoop(outcb, errcb):
                 clear()
             elif 'wipe' in str(data):
                 continue
+            elif 'finish' in str(data):
+                return
 
         else:
             res = dbg.getCommandResult(data)
