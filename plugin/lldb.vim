@@ -14,19 +14,17 @@
 " * add windows support
 " * add prompt fallback if '-terminal'
 " * add GDB-like layouts for predefined UI setup (e.g., layout reg)
-" * use lldb's output to set python interpeter path if global vimrc override
-"     does not exists
-"     $> lldb -b -o "script import sys; print(sys.executable)"
+" * add path to lldb override
 "
 ""
 
 let s:keepcpo = &cpo
 set cpo&vim
 
-function! s:restore_cpo()
+func! s:restore_cpo()
   let &cpo = s:keepcpo
   unlet s:keepcpo
-endfunction
+endfunc
 
 
 if(v:version < 801)
@@ -39,8 +37,35 @@ elseif(!has('terminal'))
   finish
 endif 
 
+func! s:GetLLDBPath()
+  if exists('g:lldb_path')
+    return g:lldb_path
+  else
+    return 'lldb'
+  endif
+endfunc
+
+func! s:GetLLDBPythonPath()
+  let lldb_exec = s:GetLLDBPath()
+  :silent let path = systemlist(lldb_exec . ' -b -o "script import sys; print(sys.executable)"')
+  if len(path) < 1
+    " did not get a valid python path from g:lldb_path so set lldb to default path
+    let g:lldb_path = 'lldb'
+    return ''
+  else
+    return path[1]
+  endif
+endfunc
+
 if (!exists("g:lldb_python_interpreter_path"))
-  let g:lldb_python_interpreter_path = 'python'
+  let lldb_python_path = s:GetLLDBPythonPath()
+
+  if lldb_python_path == ''
+    " try default Python interpreter if lldb shell fails to return path
+    let g:lldb_python_interpreter_path = 'python'
+  else
+    let g:lldb_python_interpreter_path = lldb_python_path
+  endif
 endif
 
 if (exists("g:lldb_enable") && g:lldb_enable == 0 || (exists("s:lldb_loaded")) )
@@ -49,12 +74,15 @@ if (exists("g:lldb_enable") && g:lldb_enable == 0 || (exists("s:lldb_loaded")) )
 endif
 
 " Setup the python interpreter path
-function! s:FindPythonScriptDir()
+func! s:FindPythonScriptDir()
   let script_dir = resolve(expand("<sfile>:p:h"))
   let base_dir = fnamemodify(script_dir, ':h')
   return base_dir . "/python-vim-lldb"
-endfunction
+endfunc
 let g:vim_lldb_pydir = s:FindPythonScriptDir()
+
+
+
 
 " set up UI defaults
 " lldb term - vertical
@@ -133,6 +161,8 @@ func s:InstallCommands()
   command LStep call s:SendCommand('step')
   command LNext call s:SendCommand('next')
   command LFinish call s:SendCommand('finish --internal')
+
+  command LInfo call s:LldbDebugInfo()
 
   let &cpo = save_cpo
 
@@ -288,6 +318,14 @@ func! g:Lldbapi_LldbErrFatalCb(bufnum, args)
   call ch_log('lldb> : ' . a:args[0])
   unlet! s:lldb_term_running
   call s:DeleteCommands()
+endfunc
+
+func! s:LldbDebugInfo()
+  let dbg_dict = {}
+  let dbg_dict["python path"] = s:GetLLDBPythonPath()
+  let dbg_dict["lldb executable path"] = s:GetLLDBPath()
+  echomsg 'LLDB Debug info'
+  echomsg string(dbg_dict)
 endfunc
 
 func! g:DebugBreakpoints()
