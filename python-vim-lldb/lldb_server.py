@@ -1,16 +1,9 @@
-"""
-see SBBroadcaster and SBEvent for example
-SBTarget for breakpoint iterator
-    * FindBreakpointsByID/Name
-    * GetTargetFromEvent
-"""
 from __future__ import print_function
 
 from os import system, name
+from re import compile, VERBOSE
 import sys
-import re
 import lldb_path
-from utility import *
 
 try:
     lldb_path.update_sys_path()
@@ -22,6 +15,14 @@ except ImportError:
 
 """ Free methods """
 
+# 7/8-bit C1 ANSI sequences
+ansi_escape = compile(
+    br'(?:\x1B[@-Z\\-_]|[\x80-\x9A\x9C-\x9F]|(?:\x1B\[|\x9B)[0-?]*[ -/]*[@-~])'
+)
+
+def escape_ansi(line):
+    return ansi_escape.sub(b'', bytes(line))
+
 def clear():
     # windows
     if name == 'nt':
@@ -29,7 +30,7 @@ def clear():
     else:
         _ = system('clear')
 
-def backline(i):
+def removeLastNLines(i):
     CURSOR_UP = '\x1b[1A'
     ERASE_LINE = '\x1b[2K'
     while i > 0:
@@ -186,7 +187,6 @@ class LLDB(object):
 * add tab-completion
 * add command history, last command toggle
 * add 'Finish' command to end debugger session
-* add 'clear' screen
 * respawn on error or user request
 * define arg flags (e.g., '--internal', ...)
 
@@ -201,37 +201,38 @@ def startIOLoop(outcb, errcb):
     while True:
         data = input("(lldb) ")
 
+        if len(data) < 1:
+            continue
+
         """ internal commands skip lldb's CI """
         if flag_internal in data:
-            backline(1)
+            removeLastNLines(1)
 
             data.replace(flag_internal, '')
             if 'bp_frame' in str(data):
                 dbg.getFrame()
-                continue
-            if 'bp_ids' in str(data):
+            elif 'bp_ids' in str(data):
                 outcb('breakpoint all-ids', dbg.getActiveBreakpointIDs())
-                continue
-            if 'bp_sync' in str(data):
+            elif 'bp_sync' in str(data):
                 outcb('breakpoint updated', dbg.getBreakpointDict())
-                continue
-            if 'frame_path' in str(data):
+            elif 'frame_path' in str(data):
                 outcb('current file', dbg.getLineEntryFromFrame())
+            elif 'clear' in str(data):
+                clear()
+            elif 'wipe' in str(data):
                 continue
 
-        if len(data) < 1:
-            continue
-
-        res = dbg.getCommandResult(data)
-
-        if res.Succeeded():
-            output = res.GetOutput()
-            outcb(output)
         else:
-            output = res.GetError()
-            errcb(output)
+            res = dbg.getCommandResult(data)
 
-        print('(lldb) %s'% output)
+            if res.Succeeded():
+                output = res.GetOutput()
+                outcb(output)
+            else:
+                output = res.GetError()
+                errcb(output)
+
+            print('(lldb) %s'% output)
 
     dbg.Terminate()
 

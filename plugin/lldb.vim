@@ -4,6 +4,17 @@
 " Author: Aaron Hinojosa <67hz@protonmail.com>
 " License: Same as Vim (see ":help license")
 "
+" Notes:
+"  * vim must be compiled with '+terminal' support
+"  * Linux and macOS are supported
+"
+" TODO:
+" * add help docs
+" * add tab completion for commands
+" * add windows support
+" * add prompt fallback if '-terminal'
+" * add GDB-like layouts for predefined UI setup (e.g., layout reg)
+"
 ""
 
 let s:keepcpo = &cpo
@@ -35,13 +46,11 @@ if (exists("g:lldb_enable") && g:lldb_enable == 0 || (exists("s:lldb_loaded")) )
 endif
 
 " Setup the python interpreter path
-
 function! s:FindPythonScriptDir()
   let script_dir = resolve(expand("<sfile>:p:h"))
   let base_dir = fnamemodify(script_dir, ':h')
   return base_dir . "/python-vim-lldb"
 endfunction
-
 let g:vim_lldb_pydir = s:FindPythonScriptDir()
 
 " set up UI defaults
@@ -71,7 +80,7 @@ endfunc
 
 func! s:StartDebug_term()
   " comment out to remove logs
-  call ch_logfile('vim-lldb_logfile', 'w')
+  "call ch_logfile('vim-lldb_logfile', 'w')
 
   " only 1 running instance allowed
   if (exists("s:lldb_term_running"))
@@ -87,6 +96,11 @@ func! s:StartDebug_term()
        \ 'hidden': 0,
        \ })
  
+  if s:ptybuf == 0
+    echohl WarningMsg g:lldb_python_interpreter_path . ' failed to open LLDB. Use g:lldb_python_interpreter_path to override Python path. See README for details.' | echohl None
+    return
+  endif
+
   call term_setapi(s:ptybuf, "Lldbapi_")
   set modified
   let s:lldb_term_running = 1
@@ -96,7 +110,6 @@ func! s:StartDebug_term()
     exe (&columns / 3 - 1) . "wincmd | "
   endif 
   let s:lldbwin = win_getid(winnr())
-
 endfunc
 
 "
@@ -117,13 +130,21 @@ func s:InstallCommands()
   " TODO add breakpoint with args
   "command -nargs=? Lbreakpoint call s:Breakpoint(<q-args>)
   command -nargs=? Break call s:ToggleBreakpoint()
-  command Lldb call s:StartDebug_term()
+  command Lldb call win_gotoid(s:lldbwin)
   command Lstep call s:SendCommand('step')
   command Lnext call s:SendCommand('next')
 
   let &cpo = save_cpo
 
+  call s:MapCommands()
+endfunc
+
+func s:MapCommands()
   nnoremap <C-l> :Break<CR>
+
+  " terminal-only
+  tnoremap <C-l> clear --internal<CR>
+  tnoremap <C-c> wipe --internal<CR>
 endfunc
 
 func s:DeleteCommands()
