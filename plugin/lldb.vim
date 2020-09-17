@@ -90,7 +90,8 @@ func! s:StartDebug_term()
   " UI TODO: lldb gets left 1/3 - define sensible, overridable defaults
   if s:vertical
     exe (&columns / 3 - 1) . "wincmd | "
-  endif
+  endif 
+  let s:lldbwin = win_getid(winnr())
 
 endfunc
 
@@ -208,7 +209,9 @@ func s:UI_HighlightLine(res)
   " open files if not in buffer? make an option
   exe 'drop ' . filename . ' '
   call sign_place(bp_id, 'process', 'lldb_active', filename, {'lnum': ln})
-  " TODO place cursor back on lldb terminal
+
+  " place cursor back in lldb's terminal
+  call win_gotoid(s:lldbwin)
 
 endfunc
 
