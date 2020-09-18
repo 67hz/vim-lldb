@@ -49,6 +49,8 @@ func! s:GetPythonPathFromLLDB()
   :silent let path = systemlist(lldb_exec . ' -b -o "script import sys; print(sys.executable)"')
   if len(path) < 1
     return ''
+  elseif  path[1] !~? 'python'
+      return ''
   else
     " return python path from lldb's output
     return path[1]

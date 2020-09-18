@@ -22,7 +22,6 @@ def update_sys_path():
             pass
         else:
             sys.path[0:0] = [lldb_minus_p_path]
-            #print("DEBUG sys.path: %s"% sys.path)
             return True;
 
     except CalledProcessError:
