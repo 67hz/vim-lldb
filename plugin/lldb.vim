@@ -257,11 +257,11 @@ func s:SyncBreakpoints(breakpoints)
 endfunc
 
 
-" str as filename:line:char
+" filename:line:char -> [filename, line, col]
 func s:GetBreakpointAsList(str)
   let colon_sep = trim(substitute(a:str, '.*at', '', ''))
-  let file_str = split(colon_sep, '\:')
-  return [file_str[0], file_str[1], file_str[2]]
+  let file_str_list = split(colon_sep, '\:')
+  return file_str_list
 endfunc
 
 func s:GetAbsFilePathFromFrame()
@@ -270,8 +270,15 @@ endfunc
 
 func s:UI_HighlightLine(res)
   " remove existing highlight
-  let [filename, ln, bp_id] = s:GetBreakpointAsList(a:res)
   call sign_unplace('process')
+
+  let bp_list = s:GetBreakpointAsList(a:res)
+  if len(bp_list) != 3
+      return
+  endif
+
+  let [filename, ln, bp_id] = bp_list
+
   " open file
   " TODO vsp or split based on defaults
   " open files if not in buffer? make an option
