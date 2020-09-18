@@ -259,7 +259,7 @@ endfunc
 
 " filename:line:char -> [filename, line, col]
 func s:GetBreakpointAsList(str)
-  let colon_sep = trim(substitute(a:str, '.*at', '', ''))
+  let colon_sep = trim(substitute(a:str, '.*\sat', '', ''))
   let file_str_list = split(colon_sep, '\:')
   return file_str_list
 endfunc
