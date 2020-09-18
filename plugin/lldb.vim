@@ -14,7 +14,6 @@
 " * add windows support
 " * add prompt fallback if '-terminal'
 " * add GDB-like layouts for predefined UI setup (e.g., layout reg)
-" * add path to lldb override
 "
 ""
 
@@ -91,9 +90,9 @@ endfunc
 let s:vertical = 1
 
 func! s:StartDebug_common()
-  call sign_define('lldb_marker', {'text': '=>', 'texthl': 'Search'})
-  call sign_define('lldb_active', {'linehl': 'Search'})
-  call sign_define('lldb_inactive', {'linehl': 'None'})
+  exe 'hi default ' . 'debugPC ctermbg=blue guibg=blue'
+  call sign_define('lldb_marker', {'text': '=>', 'texthl': 'debugPC'})
+  call sign_define('lldb_active', {'linehl': 'debugPC'})
 
   call s:InstallCommands()
 
@@ -258,11 +257,11 @@ func s:SyncBreakpoints(breakpoints)
 endfunc
 
 
+" str as filename:line:char
 func s:GetBreakpointAsList(str)
-  let bp_id = trim(substitute(a:str, '.*Breakpoint\s\([0-9]\)\(.*\)', '\1', ''))
   let colon_sep = trim(substitute(a:str, '.*at', '', ''))
   let file_str = split(colon_sep, '\:')
-  return [file_str[0], file_str[1], bp_id]
+  return [file_str[0], file_str[1], file_str[2]]
 endfunc
 
 func s:GetAbsFilePathFromFrame()
@@ -277,6 +276,7 @@ func s:UI_HighlightLine(res)
   " TODO vsp or split based on defaults
   " open files if not in buffer? make an option
   exe 'drop ' . filename . ' '
+
   call sign_place(bp_id, 'process', 'lldb_active', filename, {'lnum': ln})
 
   " place cursor back in lldb's terminal
@@ -292,7 +292,7 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
   "
   " Process
   "
-  if resp =~? 'process' && resp !~? 'invalid\|exited\|finished\|breakpoint'
+  if resp =~? 'process' && resp !~? 'invalid\|exited\|finished'
     call s:GetAbsFilePathFromFrame()
 
   elseif resp =~? 'current file'
@@ -332,7 +332,7 @@ func! s:LldbDebugInfo()
   let dbg_dict = {}
   let dbg_dict["python path"] = s:GetPythonPath()
   let dbg_dict["lldb executable path"] = s:GetLLDBPath()
-  echomsg 'LLDB Debug info'
+  echomsg 'LLDB Debug:'
   echomsg string(dbg_dict)
 endfunc
 
