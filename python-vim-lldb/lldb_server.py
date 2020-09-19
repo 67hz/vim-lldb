@@ -123,10 +123,10 @@ class LLDB(object):
             self.setProcess()
             #print('pid: %s'% self.getPid())
 
-    def getCommandResult(self, data):
+    def getCommandResult(self, data, add_to_history = False):
         res = lldb.SBCommandReturnObject()
         cmd = data.replace('\n', ' ').replace('\r', '')
-        self.ci.HandleCommand(cmd, res)
+        self.ci.HandleCommand(cmd, res, add_to_history)
         self.syncSession(res)
 
         return res
@@ -219,7 +219,7 @@ def startIOLoop(outcb, errcb):
                 return
 
         else:
-            res = dbg.getCommandResult(data)
+            res = dbg.getCommandResult(data, True)
 
             if res.Succeeded():
                 output = res.GetOutput()

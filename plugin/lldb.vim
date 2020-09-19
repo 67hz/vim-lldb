@@ -283,18 +283,12 @@ func s:UI_HighlightLine(res)
       return
   endif
 
-  let [filename, ln, bp_id] = bp_list
-
-  " open file to be highlighted
-  " TODO vsp or split based on defaults
-  " open files if not in buffer? make an option, or open non-buffer in preview
-  " window
-
   " jump to another window if in lldb terminal
   if bufnr() == s:ptybuf
     wincmd w
   endif
 
+  let [filename, ln, bp_id] = bp_list
   " open file @ line #
   exe 'vert drop ' . filename . ' | :' . ln
 
