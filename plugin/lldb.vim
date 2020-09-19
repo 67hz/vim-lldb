@@ -14,6 +14,7 @@
 " * add windows support
 " * add prompt fallback if '-terminal'
 " * add GDB-like layouts for predefined UI setup (e.g., layout reg)
+" * add panel for additional python interpreter if user requests 'script'
 "
 ""
 
@@ -99,16 +100,7 @@ func! s:StartDebug_common()
   " remove before Prod - defer launch until user engages
   " auto start for debugging only
   call s:StartDebug_term()
-
-  augroup TermDebug
-    au BufRead * call s:BufRead()
 endfunc
-
-" TODO: handle updates common to all lldb responses
-" may not be needed if handling updates on an individual basis
-func s:BufRead()
-endfunc
-
 
 func! s:StartDebug_term()
   " comment out to remove logs
@@ -129,6 +121,7 @@ func! s:StartDebug_term()
        \ 'vertical': s:vertical,
        \ 'term_finish': 'close',
        \ 'hidden': 0,
+       \ 'norestore': 1,
        \ })
  
   if s:ptybuf == 0
@@ -152,6 +145,7 @@ endfunc
 " breakpoints
 " step-related
 " watch vars
+" evaluating vars - print, po
 " bt
 " attach
 " launch
@@ -164,6 +158,7 @@ func s:InstallCommands()
   command Lldb call win_gotoid(s:lldbwin)
   command LStep call s:SendCommand('step')
   command LNext call s:SendCommand('next')
+  command LPrint call s:SendCommand('print ' . expand("<cword>"))
   command LFinish call s:SendCommand('finish --internal')
 
   command LInfo call s:LldbDebugInfo()
@@ -174,11 +169,21 @@ func s:InstallCommands()
 endfunc
 
 func s:MapCommands()
-  nnoremap <C-l> :LBreak<CR>
-
+  nnoremap <c-l> :Lldb<CR>
+  nnoremap <c-b> :LBreak<CR>
+  "
   " terminal-only
   tnoremap <C-l> clear --internal<CR>
   "tnoremap <C-c> wipe --internal<CR>
+
+  " these can be user-mapped, but a more realistic use case is the user jumps
+  " to LLDB terminal and executes cmds from there
+  if 0
+    nnoremap <c-s> :LStep<CR>
+    nnoremap <c-n> :LNext<CR>
+    nnoremap <c-p> :LPrint<CR>
+  endif
+
 endfunc
 
 func s:DeleteCommands()
@@ -187,6 +192,7 @@ func s:DeleteCommands()
   delcommand LNext
   delcommand LFinish
   delcommand LBreak
+  delcommand LPrint
 endfunc
 
 func s:SendCommand(cmd)
@@ -208,7 +214,7 @@ endfunc
 
 " set bp to line under cursor in file
 func s:ToggleBreakpoint()
-  " absoluter filenames
+  " use absolute filenames
   let filename = fnameescape(expand('%:p')) 
 
   let line_nr = line('.')
@@ -235,7 +241,6 @@ func s:ToggleBreakpoint()
     " now delete
     call s:SendCommand('breakpoint delete ' . id)
   else
-
     " no bp under cursor so add breakpoint 
     call s:SendCommand('breakpoint ' . arg_string)
   endif
@@ -245,6 +250,7 @@ func s:GetBreakpoints()
   call s:SendCommand('bp_sync --internal')
 endfunc
 
+" add LLDB's current breakpoint locations to UI
 func s:SyncBreakpoints(breakpoints)
   unlet s:breakpoints
   let s:breakpoints = js_decode(a:breakpoints)
@@ -258,7 +264,7 @@ endfunc
 
 
 " filename:line:char -> [filename, line, col]
-func s:GetBreakpointAsList(str)
+func s:SplitBreakpointIntoLocationList(str)
   let colon_sep = trim(substitute(a:str, '.*\sat', '', ''))
   let file_str_list = split(colon_sep, '\:')
   return file_str_list
@@ -272,17 +278,25 @@ func s:UI_HighlightLine(res)
   " remove existing highlight
   call sign_unplace('process')
 
-  let bp_list = s:GetBreakpointAsList(a:res)
+  let bp_list = s:SplitBreakpointIntoLocationList(a:res)
   if len(bp_list) != 3
       return
   endif
 
   let [filename, ln, bp_id] = bp_list
 
-  " open file
+  " open file to be highlighted
   " TODO vsp or split based on defaults
-  " open files if not in buffer? make an option
-  exe 'drop ' . filename . ' '
+  " open files if not in buffer? make an option, or open non-buffer in preview
+  " window
+
+  " jump to another window if in lldb terminal
+  if bufnr() == s:ptybuf
+    wincmd w
+  endif
+
+  " open file @ line #
+  exe 'vert drop ' . filename . ' | :' . ln
 
   call sign_place(bp_id, 'process', 'lldb_active', filename, {'lnum': ln})
 
@@ -292,6 +306,7 @@ func s:UI_HighlightLine(res)
 endfunc
 
 
+" Called when lldb has new output
 func! g:Lldbapi_LldbOutCb(bufnum, args)
   let resp = a:args[0]
   call ch_log('lldb> : ' . resp)

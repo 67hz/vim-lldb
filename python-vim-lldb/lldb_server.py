@@ -76,9 +76,6 @@ class LLDB(object):
         target = self.dbg.GetSelectedTarget()
         if target.IsValid():
             self.target = target
-            print('target set')
-        else:
-            print('target invalid')
 
     def startListener(self):
         event = lldb.SBEvent()
@@ -90,9 +87,6 @@ class LLDB(object):
                 lldb.SBProcess.eBroadcastBitStateChanged,
                 event):
             desc = lldbutil.get_description(event)
-            print('Event desc: %s', desc)
-        else:
-            print('no event')
 
     def setProcess(self):
         self.process = self.target.GetProcess()
