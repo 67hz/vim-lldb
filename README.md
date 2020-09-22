@@ -7,8 +7,8 @@ LLDB debugging in Vim.
 Installation
 ------------
 
-The recommended install procedure for any plugin is to use Vim's native package manager.
-See `:help packages` for details 
+The recommended install procedure for any plugin is with Vim's native package manager.
+See `:help packages` for details.
 
 
 System Requirements
@@ -28,10 +28,11 @@ vim-lldb offers some convenience commands for easy mapping.
 
 | Command           | List                                                                    |
 | ---               | ---                                                                     |
-| `:help lldb`      | plugin specific documentation                                           |
+| `:Lldb`          |  Jump to lldb terminal window |
 | `:LBreak`          | Toggle breakpoint under cursor                                |
 | `:LStep`          | Step |
 | `:LNext`          | Next
+| `:LPrint`          | Print variable under cursor |
 | `:LInfo`          | Display system info (useful for troubleshooting setup)         | 
 
 
@@ -57,7 +58,7 @@ let g:lldb_enable = 1
 Verifying Python Support
 ------------------------
 
-This plugin leverages the `LLDB` module which requires Python support on the host system. The plugin will launch the debugger instance in a built-in terminal using LLDB's `Python path as the interpreter. 
+This plugin leverages the `LLDB` module which requires Python support on the host system. The plugin will launch the debugger instance in a built-in terminal using LLDB's Python path as the interpreter. 
 
 Internally, the plugin uses the result of:
 
@@ -66,7 +67,7 @@ Internally, the plugin uses the result of:
     (lldb) script import sys; print(sys.executable)
     /usr/bin/python3
 
-to determine the path to the Python interpreter.  If `LLDB` is not available on the host via `lldb`, override `g:lldb_path` in your `.vimrc` accordingly.
+to determine the path to the Python interpreter.  If `LLDB` is not available on the host via `$> lldb`, override `g:lldb_path` in your `.vimrc` accordingly.
 
 Additionally, the `g:lldb_python_interpreter_path` can be [overridden](#customization) to point to the host's Python path.
 
