@@ -3,10 +3,11 @@
 "
 " Author: Aaron Hinojosa <67hz@protonmail.com>
 " License: Same as Vim (see ":help license")
+" Last Change: 2020 September 21 
 "
-" Notes:
+" Requirements:
 "  * vim must be compiled with '+terminal' support
-"  * Linux and macOS are supported
+"  * Linux or macOS
 "
 " TODO:
 " * add help docs
@@ -113,11 +114,11 @@ func! s:StartDebug_term()
   if (exists("s:lldb_term_running"))
     return
   endif
-  let cmd = python_path . ' ' . python_script_dir . '/lldb_server.py'
+  let cmd = python_path . ' ' . python_script_dir . '/lldb_runner.py'
 
-  " lldb server launched in new terminal
+  " lldb runner launched in new terminal
   let s:ptybuf = term_start(cmd, {
-       \ 'term_name': 'lldb_server',
+       \ 'term_name': 'lldb_runner',
        \ 'vertical': s:vertical,
        \ 'term_finish': 'close',
        \ 'hidden': 0,
@@ -154,8 +155,8 @@ func s:InstallCommands()
   let save_cpo = &cpo
   set cpo&vim
 
-  command -nargs=? LBreak call s:ToggleBreakpoint()
   command Lldb call win_gotoid(s:lldbwin)
+  command -nargs=? LBreak call s:ToggleBreakpoint()
   command LStep call s:SendCommand('step')
   command LNext call s:SendCommand('next')
   command LPrint call s:SendCommand('print ' . expand("<cword>"))
@@ -350,17 +351,6 @@ func! s:LldbDebugInfo()
   let dbg_dict["lldb executable path"] = s:GetLLDBPath()
   echomsg 'LLDB Debug:'
   echomsg string(dbg_dict)
-endfunc
-
-func! g:DebugBreakpoints()
-  for key in keys(s:breakpoints)
-    if key !~ '^_'
-      echo 'key:' . key
-      for bp in s:breakpoints[key]
-        echo 'bp@id#: ' . bp
-      endfor
-    endif
-  endfor
 endfunc
 
 call s:StartDebug_common()

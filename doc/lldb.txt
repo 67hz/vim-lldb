@@ -1,6 +1,7 @@
-*lldb.txt* vim-lldb	For Vim version 7.3	Last change: 2020 JSept 20
-VIM-LLDB TABLE OF CONTENTS 			*vim-lldb* *lldb*
+*lldb.txt* vim-lldb	For Vim version 8.1	Last change: 2020 Sept 20
+
 ===============================================================================
+VIM-LLDB TABLE OF CONTENTS 			*lldb-contents*
 
   LLDB for vim	
     Introduction
@@ -28,7 +29,7 @@ All LLDB commands are supported with UI integration in the works. Currently,
 breakpoints and source highlighting are supported in Vim's UI. All LLDB
 commands are supported in the associated LLDB terminal.
 
-Supports Linux and macOS. Window is not yet supported but will be in future
+Linux and macOS are supported. Window is not yet supported but will be in future
 iterations.
 
 ==============================================================================
@@ -39,4 +40,4 @@ LICENSE                                                        *vim-lldb-license
 Same as Vim. See ':help license'
 
 ==============================================================================
-vim:tw=78:ts=2:ft=help:norl:nowrap
+vim:tw=78:ts=2:ft=help:norl:nowrap:
