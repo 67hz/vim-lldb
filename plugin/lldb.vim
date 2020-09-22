@@ -1,6 +1,7 @@
 ""
 " LLDB debugger for Vim
 "
+" Credits: Based largely on termdebug and the original vim-lldb plugin by Daniel Malea.
 " Author: Aaron Hinojosa <67hz@protonmail.com>
 " License: Same as Vim (see ":help license")
 " Last Change: 2020 September 21 
@@ -96,6 +97,8 @@ func! s:StartDebug_common()
   call sign_define('lldb_marker', {'text': '=>', 'texthl': 'debugPC'})
   call sign_define('lldb_active', {'linehl': 'debugPC'})
 
+  let s:sourcewin = win_getid(winnr())
+
   call s:InstallCommands()
 
   " remove before Prod - defer launch until user engages
@@ -170,21 +173,23 @@ func s:InstallCommands()
 endfunc
 
 func s:MapCommands()
-  nnoremap <c-l> :Lldb<CR>
-  nnoremap <c-b> :LBreak<CR>
-  "
+  " let user define mappings or call g:Lldb_MapCommands() to install these
+  if exists("s:MapDefaults")
+    nnoremap ll :Lldb<CR>
+    nnoremap lb :LBreak<CR>
+    nnoremap ls :LStep<CR>
+    nnoremap ln :LNext<CR>
+    nnoremap lp :LPrint<CR>
+  endif
+
   " terminal-only
   tnoremap <C-l> clear --internal<CR>
   "tnoremap <C-c> wipe --internal<CR>
+endfunc
 
-  " these can be user-mapped, but a more realistic use case is the user jumps
-  " to LLDB terminal and executes cmds from there
-  if 0
-    nnoremap <c-s> :LStep<CR>
-    nnoremap <c-n> :LNext<CR>
-    nnoremap <c-p> :LPrint<CR>
-  endif
-
+func g:Lldb_MapCommands()
+  let s:MapDefaults = 1
+  call s:MapCommands()
 endfunc
 
 func s:DeleteCommands()
@@ -198,10 +203,12 @@ endfunc
 
 func s:SendCommand(cmd)
   call ch_log('sending to lldb: ' . a:cmd)
-  " TODO clear line before cmd in case user typed input into prompt
-  " without executing
-  " check if term_getline contains user text and thenn
-  " call term_sendkeys(s:ptybuf, 'wipe --internal ' . "\r")
+
+  " delete any text user has input in lldb terminal before sending a command
+  let current_lldb_cmd_line = trim(term_getline(s:ptybuf, '.'))
+  if current_lldb_cmd_line !=# '(lldb)' && len(current_lldb_cmd_line) > 0
+    call term_sendkeys(s:ptybuf, 'wipe --internal ' . "\r")
+  endif
   call term_sendkeys(s:ptybuf, a:cmd . "\r")
 endfunc
 
@@ -275,23 +282,32 @@ func s:GetAbsFilePathFromFrame()
   call s:SendCommand('frame_path --internal')
 endfunc
 
-func s:UI_HighlightLine(res)
-  " remove existing highlight
+func s:UI_UnHighlightLine()
   call sign_unplace('process')
+endfunc
+
+func s:UI_HighlightLine(res)
+
+  " remove existing highlight
+  call s:UI_UnHighlightLine()
 
   let bp_list = s:SplitBreakpointIntoLocationList(a:res)
   if len(bp_list) != 3
       return
   endif
 
-  " jump to another window if in lldb terminal
+  " jump to source window if in lldb terminal
+  " drop will create a new window if source window was previously deleted
   if bufnr() == s:ptybuf
-    wincmd w
+    call win_gotoid(s:sourcewin)
   endif
 
   let [filename, ln, bp_id] = bp_list
   " open file @ line #
   exe 'vert drop ' . filename . ' | :' . ln
+
+  " keep source win synced to latest open
+  let s:sourcewin = win_getid(winnr())
 
   call sign_place(bp_id, 'process', 'lldb_active', filename, {'lnum': ln})
 
@@ -309,8 +325,12 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
   "
   " Process
   "
-  if resp =~? 'process' && resp !~? 'invalid\|exited\|finished'
-    call s:GetAbsFilePathFromFrame()
+  if resp =~? 'process'
+    if resp =~? 'invalid\|exited\|finished'
+      call s:UI_UnHighlightLine()
+    else
+      call s:GetAbsFilePathFromFrame()
+    endif
 
   elseif resp =~? 'current file'
     call s:UI_HighlightLine(a:args[1])
