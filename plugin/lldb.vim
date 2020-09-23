@@ -230,7 +230,11 @@ func s:UnmapCommands()
   " terminal remaps
   for [key, mapping] in items(s:custom_map_keys_terminal)
     if !empty(s:key_maps_terminal[key])
-      call mapset("n", 0, s:key_maps_terminal[key])
+      if exists('*mapset')
+        call mapset("n", 0, s:key_maps_terminal[key])
+      else
+        exe 'tnoremap ' . s:key_maps_terminal[key]['lhs'] . ' ' . s:key_maps_terminal[key]['rhs']
+      endif
     else
       " there was no mapping before the plugin so just unset lldb's binding
       exe 'tnoremap ' . key . ' <Nop>'
