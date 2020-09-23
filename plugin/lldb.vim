@@ -88,9 +88,26 @@ func! s:GetPythonScriptDir()
   return s:script_dir . "/python-vim-lldb"
 endfunc
 
-" set up UI defaults
-" lldb term - vertical
-let s:vertical = 1
+
+"
+" UI DEFAULTS
+"
+" g:lldb_width = width as inverse (3 = 1/3 default)
+" g:lldb_orientation = 0 - horizontal, 1 - vertical (default)
+" g:lldb_rows = num rows in horizontal orientation
+"
+
+" open LLDB in 1/3 width unless defined by user
+if !exists('g:lldb_width')
+  let g:lldb_width = 3 
+endif
+
+" set orientation of lldb - 0 - horizontal , 1 - vertical
+if !exists('g:lldb_orientation')
+  let g:lldb_orientation = 1
+endif
+
+
 
 func! s:StartDebug_common()
   exe 'hi default ' . 'debugPC ctermbg=blue guibg=blue'
@@ -119,14 +136,22 @@ func! s:StartDebug_term()
 
   let cmd = python_path . ' ' . python_script_dir . '/lldb_runner.py'
 
-  " lldb runner launched in new terminal
-  let s:lldb_buf = term_start(cmd, {
+  let term_opts = {
        \ 'term_name': 'lldb_runner',
-       \ 'vertical': s:vertical,
+       \ 'vertical': g:lldb_orientation,
        \ 'term_finish': 'close',
        \ 'hidden': 0,
-       \ 'norestore': 1,
-       \ })
+       \ 'norestore': 1
+       \}
+
+  if exists('g:lldb_rows') && g:lldb_rows != 0
+    echomsg 'rows : ' . g:lldb_rows
+    let term_opts['term_rows'] = g:lldb_rows
+  endif
+
+  " lldb runner launched in new terminal
+  let s:lldb_buf = term_start(cmd, term_opts)
+
  
   if s:lldb_buf == 0
     echohl WarningMsg python_path . ' failed to open LLDB. Try `:LInfo` for plugin info and see README for details.' | echohl None
@@ -139,9 +164,8 @@ func! s:StartDebug_term()
   set modified
   let s:lldb_term_running = 1
 
-  " UI TODO: lldb gets left 1/3 - define sensible, overridable defaults
-  if s:vertical
-    exe (&columns / 3 - 1) . "wincmd | "
+  if g:lldb_orientation == 1
+    exe (&columns / g:lldb_width - 1) . "wincmd | "
   endif 
   let s:lldbwin = win_getid(winnr())
 

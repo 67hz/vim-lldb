@@ -40,18 +40,21 @@ Customization
 -------------
 
 ```vim
+
 " set python interpereter path - this is used to launch lldb
 let g:lldb_python_interpreter_path = 'usr/bin/python'
-```
 
-'''vim
 " set path to lldb executable
 let g:lldb_path = 'usr/local/bin/lldb'
-'''
 
-```vim
-" enable lldb, default is 1 {enable}, 0 {disable}
-let g:lldb_enable = 1
+" set orientation of lldb window, default is 1 (vertical), 0 horizontal
+let g:lldb_orientation = 1
+
+" set opening width of LLDB terminal as inverse value, default is 3 = 1/3 width
+let g:lldb_width = 3
+
+" set num rows for horizontal orientation
+let g:lldb_rows = 3
 ```
 
 
