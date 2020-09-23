@@ -145,7 +145,6 @@ func! s:StartDebug_term()
        \}
 
   if exists('g:lldb_rows') && g:lldb_rows != 0
-    echomsg 'rows : ' . g:lldb_rows
     let term_opts['term_rows'] = g:lldb_rows
   endif
 
@@ -193,6 +192,7 @@ func s:InstallCommands()
   command LNext call s:SendCommand('next')
   command LPrint call s:SendCommand('print ' . expand("<cword>"))
   command LFinish call s:SendCommand('finish --internal')
+  command LRun call s:SendCommand('r')
 
   command LInfo call s:LldbDebugInfo()
 
@@ -203,33 +203,23 @@ endfunc
 
 func s:MapCommands()
   let s:custom_map_keys = {
-        \'<F1>': 'Lldb',
-        \'<F2>': 'LBreak',
-        \'<F3>': 'LStep',
-        \'<F4>': 'LNext',
-        \'<F5>': 'LPrint'
+        \'<F1>': [#{cmd: ':Lldb', mode: 'n', withTarget: 0},
+        \ #{cmd: '<C-w>:LSource', mode: 't', withTarget: 0}],
+        \'<F2>': [#{cmd: ':LBreak', mode: 'n', withTarget: 0}],
+        \'<F3>': [#{cmd: ':LStep', mode: 'n', withTarget: 0}],
+        \'<F4>': [#{cmd: ':LNext', mode: 'n', withTarget: 0}],
+        \'<F5>': [#{cmd: ':LPrint', mode: 'n', withTarget: 0}],
+        \'<S-r>': [#{cmd: ':LRun', mode: 'n', withTarget: 0}],
+        \'<C-l>': [#{cmd: 'clear --internal', mode: 't', withTarget: 0}],
+        \'<C-z>': [#{cmd: 'wipe --internal', mode: 't', withTarget: 0}],
         \}
   let s:key_maps = {}
 
-  for [key, mapping] in items(s:custom_map_keys)
-    " REVIEW: Vim F1 help does not return in maparg. Is this a bug in maparg()
-    let s:key_maps[key] = maparg(key, 'n', 0, 1)
-    "echomsg string(s:key_maps[key])
-
-    exe 'nnoremap ' . key . ' :' . mapping . '<CR>'
-  endfor
-
-  " terminal-only
-  let s:custom_map_keys_terminal = {
-        \'<C-l>': 'clear --internal',
-        \'<C-z>': 'wipe --internal',
-        \'<F1>': '<C-w>:LSource'
-        \}
-  let s:key_maps_terminal = {}
-  for [key, mapping] in items(s:custom_map_keys_terminal)
-    let s:key_maps_terminal[key] = maparg(key, 'n', 0, 1)
-    "echomsg string(s:key_maps_terminal[key])
-    exe 'tnoremap ' . key . ' ' . mapping . '<CR>'
+  for [keycode, mappings] in items(s:custom_map_keys)
+    for cmd_dict in mappings
+      let s:key_maps[keycode] = maparg(keycode, cmd_dict['mode'], 0, 1)
+      exe cmd_dict['mode'] . 'noremap ' . keycode . ' ' . cmd_dict['cmd'] . '<CR>'
+      endfor
   endfor
 
 endfunc
@@ -237,32 +227,20 @@ endfunc
 func s:UnmapCommands()
   let idx = 0
   " normal remaps
-  for [key, mapping] in items(s:custom_map_keys)
-    if !empty(s:key_maps[key])
-      if exists('*mapset')
-        call mapset("n", 0, s:key_maps[key])
+  for [keycode, mapping] in items(s:custom_map_keys)
+    for cmd_dict in mapping
+      if !empty(s:key_maps[keycode])
+        if exists('*mapset')
+          call mapset("n", 0, s:key_maps[keycode])
+        else
+        " mapset() is not available on some versions of Vim
+          exe cmd_dict['mode'] . 'noremap ' . s:key_maps[keycode]['lhs'] . ' ' . s:key_maps[keycode]['rhs']
+        endif
       else
-      " mapset() is not available on some versions of Vim
-        exe 'nnoremap ' . s:key_maps[key]['lhs'] . ' ' . s:key_maps[key]['rhs']
+        " there was no mapping before the plugin so just unset lldb's binding
+        exe cmd_dict['mode'] . 'noremap ' . keycode . ' <Nop>'
       endif
-    else
-      " there was no mapping before the plugin so just unset lldb's binding
-      exe 'nnoremap ' . key . ' <Nop>'
-    endif
-  endfor
-
-  " terminal remaps
-  for [key, mapping] in items(s:custom_map_keys_terminal)
-    if !empty(s:key_maps_terminal[key])
-      if exists('*mapset')
-        call mapset("n", 0, s:key_maps_terminal[key])
-      else
-        exe 'tnoremap ' . s:key_maps_terminal[key]['lhs'] . ' ' . s:key_maps_terminal[key]['rhs']
-      endif
-    else
-      " there was no mapping before the plugin so just unset lldb's binding
-      exe 'tnoremap ' . key . ' <Nop>'
-    endif
+    endfor
   endfor
 
 endfunc
@@ -275,6 +253,7 @@ func s:DeleteCommands()
   delcommand LFinish
   delcommand LBreak
   delcommand LPrint
+  delcommand LRun
 endfunc
 
 func s:EndTermDebug(job, status)
