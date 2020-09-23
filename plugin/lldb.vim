@@ -1,7 +1,7 @@
 ""
 " LLDB debugger for Vim
 "
-" Credits: Based largely on termdebug and the original vim-lldb plugin by Daniel Malea.
+" Credits: Based largely on termdebug by Bram Moolenaar and the original vim-lldb plugin by Daniel Malea.
 " Author: Aaron Hinojosa <67hz@protonmail.com>
 " License: Same as Vim (see ":help license")
 " Last Change: 2020 September 21 
@@ -13,7 +13,7 @@
 " TODO:
 " * add help docs
 " * add tab completion for commands
-" * add windows support
+" * add Windows support
 " * add prompt fallback if '-terminal'
 " * add GDB-like layouts for predefined UI setup (e.g., layout reg)
 " * add panel for additional python interpreter if user requests 'script'
@@ -28,7 +28,6 @@ func! s:restore_cpo()
   unlet s:keepcpo
 endfunc
 
-
 if(v:version < 801)
   call confirm('ERROR: lldb requires vim > v8.1.0. lldb debugging is disabled.')
   call s:restore_cpo()
@@ -38,6 +37,11 @@ elseif(!has('terminal'))
   call s:restore_cpo()
   finish
 endif 
+
+if (exists("g:lldb_enable") && g:lldb_enable == 0 || (exists("s:lldb_term_running")) )
+  call s:restore_cpo()
+  finish
+endif
 
 func! s:GetLLDBPath()
   if !exists('g:lldb_path')
@@ -77,10 +81,6 @@ func! s:GetPythonPath()
   endif
 endfun
 
-if (exists("g:lldb_enable") && g:lldb_enable == 0 || (exists("s:lldb_loaded")) )
-  call s:restore_cpo()
-  finish
-endif
 
 let s:script_dir = fnamemodify(resolve(expand("<sfile>:p")), ':h:h')
 " Setup the python interpreter path
@@ -106,15 +106,17 @@ func! s:StartDebug_term()
   " comment out to remove logs
   "call ch_logfile('vim-lldb_logfile', 'w')
 
+  " only 1 running instance allowed
+  if (exists("s:lldb_term_running"))
+    return
+  endif
+
   let s:sourcewin = win_getid(winnr())
 
   let python_path = s:GetPythonPath()
   let python_script_dir = s:GetPythonScriptDir()
 
-  " only 1 running instance allowed
-  if (exists("s:lldb_term_running"))
-    return
-  endif
+
   let cmd = python_path . ' ' . python_script_dir . '/lldb_runner.py'
 
   " lldb runner launched in new terminal
@@ -213,7 +215,12 @@ func s:UnmapCommands()
   " normal remaps
   for [key, mapping] in items(s:custom_map_keys)
     if !empty(s:key_maps[key])
-      call mapset("n", 0, s:key_maps[key])
+      if exists('*mapset')
+        call mapset("n", 0, s:key_maps[key])
+      else
+      " mapset() is not available on some versions of Vim
+        exe 'nnoremap ' . s:key_maps[key]['lhs'] . ' ' . s:key_maps[key]['rhs']
+      endif
     else
       " there was no mapping before the plugin so just unset lldb's binding
       exe 'nnoremap ' . key . ' <Nop>'
