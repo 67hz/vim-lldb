@@ -97,18 +97,16 @@ func! s:StartDebug_common()
   call sign_define('lldb_marker', {'text': '=>', 'texthl': 'debugPC'})
   call sign_define('lldb_active', {'linehl': 'debugPC'})
 
-  let s:sourcewin = win_getid(winnr())
+
 
   call s:InstallCommands()
-
-  " remove before Prod - defer launch until user engages
-  " auto start for debugging only
-  call s:StartDebug_term()
 endfunc
 
 func! s:StartDebug_term()
   " comment out to remove logs
   "call ch_logfile('vim-lldb_logfile', 'w')
+
+  let s:sourcewin = win_getid(winnr())
 
   let python_path = s:GetPythonPath()
   let python_script_dir = s:GetPythonScriptDir()
@@ -120,7 +118,7 @@ func! s:StartDebug_term()
   let cmd = python_path . ' ' . python_script_dir . '/lldb_runner.py'
 
   " lldb runner launched in new terminal
-  let s:ptybuf = term_start(cmd, {
+  let s:lldb_buf = term_start(cmd, {
        \ 'term_name': 'lldb_runner',
        \ 'vertical': s:vertical,
        \ 'term_finish': 'close',
@@ -128,12 +126,14 @@ func! s:StartDebug_term()
        \ 'norestore': 1,
        \ })
  
-  if s:ptybuf == 0
+  if s:lldb_buf == 0
     echohl WarningMsg python_path . ' failed to open LLDB. Try `:LInfo` for plugin info and see README for details.' | echohl None
     return
   endif
 
-  call term_setapi(s:ptybuf, "Lldbapi_")
+  call job_setoptions(term_getjob(s:lldb_buf), {'exit_cb': function('s:EndTermDebug')})
+
+  call term_setapi(s:lldb_buf, "Lldbapi_")
   set modified
   let s:lldb_term_running = 1
 
@@ -142,6 +142,8 @@ func! s:StartDebug_term()
     exe (&columns / 3 - 1) . "wincmd | "
   endif 
   let s:lldbwin = win_getid(winnr())
+
+  call s:StartDebug_common()
 endfunc
 
 "
@@ -159,6 +161,7 @@ func s:InstallCommands()
   set cpo&vim
 
   command Lldb call win_gotoid(s:lldbwin)
+  command LSource call win_gotoid(s:sourcewin)
   command -nargs=? LBreak call s:ToggleBreakpoint()
   command LStep call s:SendCommand('step')
   command LNext call s:SendCommand('next')
@@ -173,27 +176,65 @@ func s:InstallCommands()
 endfunc
 
 func s:MapCommands()
-  " let user define mappings or call g:Lldb_MapCommands() to install these
-  if exists("s:MapDefaults")
-    nnoremap ll :Lldb<CR>
-    nnoremap lb :LBreak<CR>
-    nnoremap ls :LStep<CR>
-    nnoremap ln :LNext<CR>
-    nnoremap lp :LPrint<CR>
-  endif
+  let s:custom_map_keys = {
+        \'<F1>': 'Lldb',
+        \'<F2>': 'LBreak',
+        \'<F3>': 'LStep',
+        \'<F4>': 'LNext',
+        \'<F5>': 'LPrint'
+        \}
+  let s:key_maps = {}
+
+  for [key, mapping] in items(s:custom_map_keys)
+    " REVIEW: Vim F1 help does not return in maparg. Is this a bug in maparg()
+    let s:key_maps[key] = maparg(key, 'n', 0, 1)
+    "echomsg string(s:key_maps[key])
+
+    exe 'nnoremap ' . key . ' :' . mapping . '<CR>'
+  endfor
 
   " terminal-only
-  tnoremap <C-l> clear --internal<CR>
-  "tnoremap <C-c> wipe --internal<CR>
+  let s:custom_map_keys_terminal = {
+        \'<C-l>': 'clear --internal',
+        \'<C-z>': 'wipe --internal',
+        \'<F1>': '<C-w>:LSource'
+        \}
+  let s:key_maps_terminal = {}
+  for [key, mapping] in items(s:custom_map_keys_terminal)
+    let s:key_maps_terminal[key] = maparg(key, 'n', 0, 1)
+    "echomsg string(s:key_maps_terminal[key])
+    exe 'tnoremap ' . key . ' ' . mapping . '<CR>'
+  endfor
+
 endfunc
 
-func g:Lldb_MapCommands()
-  let s:MapDefaults = 1
-  call s:MapCommands()
+func s:UnmapCommands()
+  let idx = 0
+  " normal remaps
+  for [key, mapping] in items(s:custom_map_keys)
+    if !empty(s:key_maps[key])
+      call mapset("n", 0, s:key_maps[key])
+    else
+      " there was no mapping before the plugin so just unset lldb's binding
+      exe 'nnoremap ' . key . ' <Nop>'
+    endif
+  endfor
+
+  " terminal remaps
+  for [key, mapping] in items(s:custom_map_keys_terminal)
+    if !empty(s:key_maps_terminal[key])
+      call mapset("n", 0, s:key_maps_terminal[key])
+    else
+      " there was no mapping before the plugin so just unset lldb's binding
+      exe 'tnoremap ' . key . ' <Nop>'
+    endif
+  endfor
+
 endfunc
 
 func s:DeleteCommands()
   delcommand Lldb
+  delcommand LSource
   delcommand LStep
   delcommand LNext
   delcommand LFinish
@@ -201,15 +242,29 @@ func s:DeleteCommands()
   delcommand LPrint
 endfunc
 
+func s:EndTermDebug(job, status)
+  call s:UI_RemoveBreakpoints()
+  call s:UI_RemoveHighlightLine()
+  call s:DeleteCommands()
+  unlet s:lldb_term_running
+
+  exe 'bwipe! ' . s:lldb_buf
+
+  unlet s:lldbwin
+  unlet s:sourcewin
+  call s:UnmapCommands()
+
+endfunc
+
 func s:SendCommand(cmd)
   call ch_log('sending to lldb: ' . a:cmd)
 
   " delete any text user has input in lldb terminal before sending a command
-  let current_lldb_cmd_line = trim(term_getline(s:ptybuf, '.'))
+  let current_lldb_cmd_line = trim(term_getline(s:lldb_buf, '.'))
   if current_lldb_cmd_line !=# '(lldb)' && len(current_lldb_cmd_line) > 0
-    call term_sendkeys(s:ptybuf, 'wipe --internal ' . "\r")
+    call term_sendkeys(s:lldb_buf, 'wipe --internal ' . "\r")
   endif
-  call term_sendkeys(s:ptybuf, a:cmd . "\r")
+  call term_sendkeys(s:lldb_buf, a:cmd . "\r")
 endfunc
 
 
@@ -258,11 +313,15 @@ func s:GetBreakpoints()
   call s:SendCommand('bp_sync --internal')
 endfunc
 
-" add LLDB's current breakpoint locations to UI
-func s:SyncBreakpoints(breakpoints)
+func s:UI_RemoveBreakpoints()
   unlet s:breakpoints
-  let s:breakpoints = js_decode(a:breakpoints)
   call sign_unplace('bps')
+endfunc
+
+" add LLDB's current breakpoint locations to UI
+func s:UI_SyncBreakpoints(breakpoints)
+  call s:UI_RemoveBreakpoints()
+  let s:breakpoints = js_decode(a:breakpoints)
 
   for [file_linenr, ids] in items(s:breakpoints)
     let file_linenr_arr = split(file_linenr, ':')
@@ -282,14 +341,14 @@ func s:GetAbsFilePathFromFrame()
   call s:SendCommand('frame_path --internal')
 endfunc
 
-func s:UI_UnHighlightLine()
+func s:UI_RemoveHighlightLine()
   call sign_unplace('process')
 endfunc
 
 func s:UI_HighlightLine(res)
 
   " remove existing highlight
-  call s:UI_UnHighlightLine()
+  call s:UI_RemoveHighlightLine()
 
   let bp_list = s:SplitBreakpointIntoLocationList(a:res)
   if len(bp_list) != 3
@@ -298,7 +357,7 @@ func s:UI_HighlightLine(res)
 
   " jump to source window if in lldb terminal
   " drop will create a new window if source window was previously deleted
-  if bufnr() == s:ptybuf
+  if bufnr() == s:lldb_buf
     call win_gotoid(s:sourcewin)
   endif
 
@@ -327,7 +386,7 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
   "
   if resp =~? 'process'
     if resp =~? 'invalid\|exited\|finished'
-      call s:UI_UnHighlightLine()
+      call s:UI_RemoveHighlightLine()
     else
       call s:GetAbsFilePathFromFrame()
     endif
@@ -340,7 +399,7 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
   "
   elseif resp =~? 'Breakpoint' && resp !~? 'warning\|pending\|current\|process'
     if resp =~? 'updated'
-      call s:SyncBreakpoints(a:args[1])
+      call s:UI_SyncBreakpoints(a:args[1])
     else
       call s:GetBreakpoints()
     endif
@@ -373,6 +432,6 @@ func! s:LldbDebugInfo()
   echomsg string(dbg_dict)
 endfunc
 
-call s:StartDebug_common()
+call s:StartDebug_term()
 
 call s:restore_cpo()
