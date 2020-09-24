@@ -179,7 +179,7 @@ func! s:StartDebug_term()
           \})
     let pty_out = job_info(term_getjob(s:lldb_comms_buf))['tty_out']
     " set output file 
-    "call s:SendCommand('set_output -tty ' . pty_out . ' -internal')
+    call s:SendCommand('set_output -tty ' . pty_out . ' -internal')
   endif
 
   call s:StartDebug_common()
@@ -405,6 +405,7 @@ endfunc
 
 
 " Called when lldb has new output
+" parse response and update Vim instance when necessary
 func! g:Lldbapi_LldbOutCb(bufnum, args)
   let resp = a:args[0]
   call ch_log('lldb> : ' . resp)
@@ -419,13 +420,16 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
       call s:GetAbsFilePathFromFrame()
     endif
 
+  "
+  " Stepping
+  "
   elseif resp =~? 'current file'
     call s:UI_HighlightLine(a:args[1])
 
   "
-  " Breakpoint
+  " Sync Breakpoints
   "
-  elseif resp =~? 'Breakpoint' && resp !~? 'warning\|pending\|current\|process'
+  elseif resp =~? 'Breakpoint\|executable set' && resp !~? 'warning\|pending\|process'
     if resp =~? 'updated'
       call s:UI_SyncBreakpoints(a:args[1])
     else
