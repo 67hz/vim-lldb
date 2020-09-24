@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from os import system, name
-from re import compile, VERBOSE
+from re import compile, VERBOSE, search, sub
 import sys
 import lldb_path
 
@@ -121,10 +121,21 @@ class LLDB(object):
         elif self.getPid() is None:
             self.setProcess()
 
-    def getCommandResult(self, data, add_to_history = False):
+    def getCommandResult(self, data, add_to_history = False, out_handle = None):
         res = lldb.SBCommandReturnObject()
         cmd = data.replace('\n', ' ').replace('\r', '')
+
+        if out_handle is not None:
+            f = open(out_handle, "w")
+        else:
+            # default to stdout for output
+            f = sys.__stdout__
+
+        self.dbg.SetOutputFileHandle(f, True)
+        handle = self.dbg.GetOutputFileHandle()
         self.ci.HandleCommand(cmd, res, add_to_history)
+
+        res.PutOutput(handle)
         self.syncSession(res)
 
         return res
@@ -141,14 +152,6 @@ class LLDB(object):
         filename = args[1]
         line_nr = args[2]
         self.getAllBreakpoints()
-
-    def getActiveBreakpointIDs(self):
-        """ return all active bp id's as list [id, id, ...] """
-        ids = []
-        for bp in self.target.breakpoint_iter():
-            ids.append(bp.GetID())
-
-        return {"ids": ids}
 
     def getBreakpointDict(self):
         """ REVIEW is it necessary to store sub-ids of breakpoint, e.g. 1.2
@@ -174,7 +177,7 @@ class LLDB(object):
 * add tab-completion
 * add 'Finish' command to end debugger session
 * respawn on error or user request
-* define arg flags (e.g., '--internal', ...)
+* define arg flags (e.g., '-internal', ...)
 
 Start LLDB interpreter in IO loop to take commands from input prompt
 and pass to debugger instance
@@ -182,22 +185,32 @@ and pass to debugger instance
 def startIOLoop(outcb, errcb):
     dbg = LLDB()
     dbg.start()
-    flag_internal = '--internal'
+    flag_internal = '-internal'
+    flag_tty = '-tty'
+    tty_out = None
 
     while True:
         data = input("(lldb) ")
 
+
         if len(data) < 1:
             continue
 
-        """ internal commands skip lldb's CI """
+        """ -tty out_handle sets output of CI """
+        if flag_tty in data:
+            p = compile(r'(?<=-tty)\s*([\w\\\/\.\_\-]*)')
+            out = search(p, data)
+            tty_out = out.group().strip() if len(out.group()) else None
+            # remove -tty flag and file path from data before further processing
+            p = compile(r'-tty\s*[\w\\\/\.\_\-]*')
+            data = p.sub('', data)
+
+        """ -internal commands skip lldb's CI """
         if flag_internal in data:
             removeLastNLines(1)
 
             data.replace(flag_internal, '')
-            if 'bp_ids' in str(data):
-                outcb('breakpoint all-ids', dbg.getActiveBreakpointIDs())
-            elif 'bp_sync' in str(data):
+            if 'bp_sync' in str(data):
                 outcb('breakpoint updated', dbg.getBreakpointDict())
             elif 'frame_path' in str(data):
                 outcb('current file', dbg.getLineEntryFromFrame())
@@ -209,7 +222,7 @@ def startIOLoop(outcb, errcb):
                 return
 
         else:
-            res = dbg.getCommandResult(data, True)
+            res = dbg.getCommandResult(data, add_to_history = True, out_handle = tty_out)
 
             if res.Succeeded():
                 output = res.GetOutput()
@@ -217,8 +230,6 @@ def startIOLoop(outcb, errcb):
             else:
                 output = res.GetError()
                 errcb(output)
-
-            print('(lldb) %s'% output)
 
     dbg.Terminate()
 

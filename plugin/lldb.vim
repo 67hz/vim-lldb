@@ -128,6 +128,7 @@ func! s:StartDebug_term()
     return
   endif
 
+
   let s:sourcewin = win_getid(winnr())
 
   let python_path = s:GetPythonPath()
@@ -135,7 +136,6 @@ func! s:StartDebug_term()
 
 
   let cmd = python_path . ' ' . python_script_dir . '/lldb_runner.py'
-
   let term_opts = {
        \ 'term_name': 'lldb_runner',
        \ 'vertical': g:lldb_orientation,
@@ -166,7 +166,21 @@ func! s:StartDebug_term()
   if g:lldb_orientation == 1
     exe (&columns / g:lldb_width - 1) . "wincmd | "
   endif 
+
   let s:lldbwin = win_getid(winnr())
+
+
+  " use new terminal as lldb output
+  if 0
+    let s:lldb_comms_buf = term_start('NONE', {
+          \ 'term_name': 'debugged program',
+          \ 'vertical': 1,
+          \ 'hidden': 0,
+          \})
+    let pty_out = job_info(term_getjob(s:lldb_comms_buf))['tty_out']
+    " set output file 
+    "call s:SendCommand('set_output -tty ' . pty_out . ' -internal')
+  endif
 
   call s:StartDebug_common()
 endfunc
@@ -191,7 +205,7 @@ func s:InstallCommands()
   command LStep call s:SendCommand('step')
   command LNext call s:SendCommand('next')
   command LPrint call s:SendCommand('print ' . expand("<cword>"))
-  command LFinish call s:SendCommand('finish --internal')
+  command LFinish call s:SendCommand('finish -internal')
   command LRun call s:SendCommand('r')
 
   command LInfo call s:LldbDebugInfo()
@@ -210,8 +224,8 @@ func s:MapCommands()
         \'<F4>': [#{cmd: ':LNext', mode: 'n', withTarget: 0}],
         \'<F5>': [#{cmd: ':LPrint', mode: 'n', withTarget: 0}],
         \'<S-r>': [#{cmd: ':LRun', mode: 'n', withTarget: 0}],
-        \'<C-l>': [#{cmd: 'clear --internal', mode: 't', withTarget: 0}],
-        \'<C-z>': [#{cmd: 'wipe --internal', mode: 't', withTarget: 0}],
+        \'<C-l>': [#{cmd: 'clear -internal', mode: 't', withTarget: 0}],
+        \'<C-z>': [#{cmd: 'wipe -internal', mode: 't', withTarget: 0}],
         \}
   let s:key_maps = {}
 
@@ -276,7 +290,7 @@ func s:SendCommand(cmd)
   " delete any text user has input in lldb terminal before sending a command
   let current_lldb_cmd_line = trim(term_getline(s:lldb_buf, '.'))
   if current_lldb_cmd_line !=# '(lldb)' && len(current_lldb_cmd_line) > 0
-    call term_sendkeys(s:lldb_buf, 'wipe --internal ' . "\r")
+    call term_sendkeys(s:lldb_buf, 'wipe -internal ' . "\r")
   endif
   call term_sendkeys(s:lldb_buf, a:cmd . "\r")
 endfunc
@@ -324,7 +338,7 @@ func s:ToggleBreakpoint()
 endfunc
 
 func s:GetBreakpoints()
-  call s:SendCommand('bp_sync --internal')
+  call s:SendCommand('bp_sync -internal')
 endfunc
 
 func s:UI_RemoveBreakpoints()
@@ -352,7 +366,7 @@ func s:SplitBreakpointIntoLocationList(str)
 endfunc
 
 func s:GetAbsFilePathFromFrame()
-  call s:SendCommand('frame_path --internal')
+  call s:SendCommand('frame_path -internal')
 endfunc
 
 func s:UI_RemoveHighlightLine()
