@@ -114,8 +114,6 @@ func! s:StartDebug_common()
   call sign_define('lldb_marker', {'text': '=>', 'texthl': 'debugPC'})
   call sign_define('lldb_active', {'linehl': 'debugPC'})
 
-
-
   call s:InstallCommands()
 endfunc
 
@@ -150,25 +148,22 @@ func! s:StartDebug_term()
 
   " lldb runner launched in new terminal
   let s:lldb_buf = term_start(cmd, term_opts)
+  call job_setoptions(term_getjob(s:lldb_buf), {'exit_cb': function('s:EndTermDebug')})
 
- 
   if s:lldb_buf == 0
     echohl WarningMsg python_path . ' failed to open LLDB. Try `:LInfo` for plugin info and see README for details.' | echohl None
     return
   endif
 
-  call job_setoptions(term_getjob(s:lldb_buf), {'exit_cb': function('s:EndTermDebug')})
-
   call term_setapi(s:lldb_buf, "Lldbapi_")
   set modified
-  let s:lldb_term_running = 1
 
   if g:lldb_orientation == 1
     exe (&columns / g:lldb_width - 1) . "wincmd | "
   endif 
 
   let s:lldbwin = win_getid(winnr())
-
+  let s:lldb_term_running = 1
 
   " use new terminal as lldb output
   if 0
@@ -223,7 +218,8 @@ func s:MapCommands()
         \'<F3>': [#{cmd: ':LStep', mode: 'n', withTarget: 0}],
         \'<F4>': [#{cmd: ':LNext', mode: 'n', withTarget: 0}],
         \'<F5>': [#{cmd: ':LPrint', mode: 'n', withTarget: 0}],
-        \'<S-r>': [#{cmd: ':LRun', mode: 'n', withTarget: 0}],
+        \'<S-r>': [#{cmd: ':LRun', mode: 'n', withTarget: 0},
+        \ #{cmd: '<C-w>:LRun', mode: 't', withTarget: 0}],
         \'<C-l>': [#{cmd: 'clear -internal', mode: 't', withTarget: 0}],
         \'<C-z>': [#{cmd: 'wipe -internal', mode: 't', withTarget: 0}],
         \}
@@ -260,28 +256,18 @@ func s:UnmapCommands()
 endfunc
 
 func s:DeleteCommands()
-  delcommand Lldb
-  delcommand LSource
-  delcommand LStep
-  delcommand LNext
-  delcommand LFinish
-  delcommand LBreak
-  delcommand LPrint
-  delcommand LRun
+  comclear
 endfunc
 
 func s:EndTermDebug(job, status)
+  exe 'bwipe! ' . s:lldb_buf
+  call s:DeleteCommands()
   call s:UI_RemoveBreakpoints()
   call s:UI_RemoveHighlightLine()
-  call s:DeleteCommands()
-  unlet s:lldb_term_running
-
-  exe 'bwipe! ' . s:lldb_buf
-
-  unlet s:lldbwin
-  unlet s:sourcewin
   call s:UnmapCommands()
-
+  unlet! s:lldb_term_running
+  unlet! s:lldbwin
+  unlet! s:sourcewin
 endfunc
 
 func s:SendCommand(cmd)
@@ -445,12 +431,12 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
 endfunc
 
 func! g:Lldbapi_LldbErrCb(bufnum, args)
-  echohl WarningMsg | echo 'lldb: ' . a:args[0] | echohl None
+  echohl WarningMsg | echomsg 'lldb: ' . a:args[0] | echohl None
   call ch_log('lldb> : ' . a:args[0])
 endfunc
 
 func! g:Lldbapi_LldbErrFatalCb(bufnum, args)
-  echohl WarningMsg | echo 'lldb: ' . a:args[0] | echohl None
+  echohl WarningMsg | echomsg 'lldb: ' . a:args[0] | echohl None
   call ch_log('lldb> : ' . a:args[0])
   unlet! s:lldb_term_running
   call s:DeleteCommands()
