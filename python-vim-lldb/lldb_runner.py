@@ -39,6 +39,7 @@ def escapeQuotes(res):
     res = escape_ansi(res.encode("utf-8", "replace"))
     res = str(res.decode("utf-8"))
     res = res.replace('"', '\\\"')
+    res = res.replace("'", '\\\"')
     return res
 
 def parseArgs(data):
@@ -55,7 +56,7 @@ def vimErrCb(err):
 
 
 
-""" Manage an lldb instance"""
+""" Manage an LLDB instance"""
 class LLDB(object):
     def __init__(self):
         self.dbg = None
@@ -71,25 +72,16 @@ class LLDB(object):
         self.ci = self.dbg.GetCommandInterpreter()
 
     def setTarget(self):
-        target = self.dbg.GetSelectedTarget()
-        if target.IsValid():
-            self.target = target
-
-    def startListener(self):
-        event = lldb.SBEvent()
-        broadcaster = self.process.GetBroadcaster()
-        listener = lldb.SBListener('dbg listener')
-        rc = broadcaster.AddListener(listener, lldb.SBProcess.eBroadcastBitStateChanged)
-        if listener.WaitForEventForBroadcasterWithType(5,
-                broadcaster,
-                lldb.SBProcess.eBroadcastBitStateChanged,
-                event):
-            desc = lldbutil.get_description(event)
+        self.target = self.dbg.GetSelectedTarget()
 
     def setProcess(self):
-        self.process = self.target.GetProcess()
+        if self.target is not None:
+            self.process = self.target.GetProcess()
 
-    def getProcessState(self):
+    def processState(self):
+        if self.process is None:
+            self.process = self.setProcess()
+
         if self.process is not None:
             state = self.process.GetState() 
             return self.dbg.StateAsCString(state)
@@ -108,50 +100,99 @@ class LLDB(object):
 
 
     def syncSession(self, res):
-        """ lldb handles the task of lauching/attaching relieving this module from a priori knowledge of target reqs and custom settings. We only establish a target after lldb returns from a command with a target instead of creating a target to pass off to lldb """
-
         # attempt to set target if no target (valid) exists or
         # an exec is explicitly set
-        if self.target is None or 'executable set' in str(res):
+        if self.target is None or self.getPid() is None:
             self.setTarget()
-
-            # unset pre-existing process to make sure we sync to the newest process
-            self.process = None
-
-        elif self.getPid() is None:
             self.setProcess()
+
+    def getDescription(self, obj, option = None):
+        if obj is None:
+            return None
+
+        desc = None
+        stream = lldb.SBStream()
+        get_desc_method = getattr(obj, 'GetDescription')
+
+        tuple = (lldb.SBTarget, lldb.SBBreakpointLocation, lldb.SBWatchpoint)
+        if isinstance(obj, tuple):
+            if option is None:
+                option = lldb.eDescriptionLevelVerbose
+
+        if option is None:
+            success = get_desc_method(stream)
+        else:
+            success = get_desc_method(stream, option)
+
+        if not success:
+            return None
+
+        return stream.GetData()
+
 
     def getCommandResult(self, data, add_to_history = False, out_handle = None):
         res = lldb.SBCommandReturnObject()
         cmd = data.replace('\n', ' ').replace('\r', '')
 
         if out_handle is not None:
+            # redirect stdout to *FILE
             f = open(out_handle, "w")
         else:
-            # default to stdout for output
+            # else default to stdout for output
             f = sys.__stdout__
 
         self.dbg.SetOutputFileHandle(f, True)
         handle = self.dbg.GetOutputFileHandle()
-        self.ci.HandleCommand(cmd, res, add_to_history)
+        handle_cmd = self.ci.HandleCommand(cmd, res, add_to_history)
+
+        # keep target/process up to date
+        self.syncSession(res)
+
+        # TODO send separately for consumption by client UIs
+        if self.processState() is not None:
+            print('process: %s'% self.getDescription(self.target.GetProcess()))
+            print('thread: %s'% self.getDescription(self.process.GetSelectedThread()))
+            print('frame: %s'% self.getDescription(self.getSelectedFrame()))
+
+        print('IsValid: ', res.IsValid())
+        print('HasResult: ', res.HasResult())
+        #print('GetErrorSize: ', res.GetErrorSize())
+        #print('GetStatus: ', res.GetStatus())
+        # status: 5 - exited, 2 when stopped with 2 breakpoints
+
+        #if res.HasResult():
+            # breakpoint, stepping, launched process, r
+            # no need for display. vim will handle
+            # add frame info to 
+            #print('result: ', res.GetOutput())
+            #res.PutOutput(handle)
+
+        #else:
+            # no result - help, error, exec set, stepping?
+            # except when check output for prompt
+            #print('no result: ', res.GetOutput())
+            #res.PutOutput(handle)
 
         res.PutOutput(handle)
-        self.syncSession(res)
+
+
+        # Vim cb gets errors in prompt
 
         return res
 
+    def getSelectedFrame(self):
+        frame = None
+        if self.processState() is not None:
+            for thread in self.process:
+                frame = thread.GetSelectedFrame()
+
+        return frame
+
     def getLineEntryFromFrame(self):
         """ return full path from frame """
-        for thread in self.process:
-            frame = thread.GetSelectedFrame()
-            path = frame.GetPCAddress().GetLineEntry()
-            return path
-
-    def getBreakpointAtFileLine(self, data):
-        args = parseArgs(data)
-        filename = args[1]
-        line_nr = args[2]
-        self.getAllBreakpoints()
+        frame = self.getSelectedFrame()
+        path = frame.GetPCAddress().GetLineEntry()
+        return path
 
     def getBreakpointDict(self):
         """ REVIEW is it necessary to store sub-ids of breakpoint, e.g. 1.2
@@ -175,7 +216,6 @@ class LLDB(object):
 @TODO
 * handle keyboard interrupt
 * add tab-completion
-* add 'Finish' command to end debugger session
 * respawn on error or user request
 * define arg flags (e.g., '-internal', ...)
 
@@ -205,7 +245,7 @@ def startIOLoop(outcb, errcb):
             p = compile(r'-tty\s*[\w\\\/\.\_\-]*')
             data = p.sub('', data)
 
-        """ -internal commands skip lldb's CI """
+        """ -internal commands skip LLDB's CI """
         if flag_internal in data:
             removeLastNLines(1)
 
@@ -218,8 +258,7 @@ def startIOLoop(outcb, errcb):
                 clear()
             elif 'wipe' in str(data):
                 continue
-            elif 'finish' in str(data):
-                return
+
 
         else:
             res = dbg.getCommandResult(data, add_to_history = True, out_handle = tty_out)
@@ -235,10 +274,13 @@ def startIOLoop(outcb, errcb):
 
 
 
-# start LLDB interpreter if lldb was imported
+
+
+# start LLDB interpreter if LLDB was imported
 if not lldbImported:
     print('\033]51;["call","Lldbapi_%s", ["%s"]]\007' %
             ('LldbErrFatalCb', 'Failed to import vim-lldb. Try setting g:lldb_python_interpreter_path=\'path/to/python\' in .vimrc. See README for help.',))
+    sys.exit()
 else:
     startIOLoop(vimOutCb, vimErrCb)
 

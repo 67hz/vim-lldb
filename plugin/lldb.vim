@@ -104,7 +104,7 @@ endif
 
 " set orientation of lldb - 0 - horizontal , 1 - vertical
 if !exists('g:lldb_orientation')
-  let g:lldb_orientation = 1
+  let g:lldb_orientation = 0
 endif
 
 
@@ -115,6 +115,7 @@ func! s:StartDebug_common()
   call sign_define('lldb_active', {'linehl': 'debugPC'})
 
   call s:InstallCommands()
+  call win_gotoid(s:lldbwin)
 endfunc
 
 func! s:StartDebug_term()
@@ -126,56 +127,88 @@ func! s:StartDebug_term()
     return
   endif
 
-
-  let s:sourcewin = win_getid(winnr())
-
   let python_path = s:GetPythonPath()
   let python_script_dir = s:GetPythonScriptDir()
 
+  let s:sourcewin = win_getid(winnr())
 
-  let cmd = python_path . ' ' . python_script_dir . '/lldb_runner.py'
-  let term_opts = {
-       \ 'term_name': 'lldb_runner',
-       \ 'vertical': g:lldb_orientation,
-       \ 'term_finish': 'close',
-       \ 'hidden': 0,
-       \ 'norestore': 1
-       \}
-
-  if exists('g:lldb_rows') && g:lldb_rows != 0
-    let term_opts['term_rows'] = g:lldb_rows
-  endif
-
-  " lldb runner launched in new terminal
-  let s:lldb_buf = term_start(cmd, term_opts)
-  call job_setoptions(term_getjob(s:lldb_buf), {'exit_cb': function('s:EndTermDebug')})
-
-  if s:lldb_buf == 0
-    echohl WarningMsg python_path . ' failed to open LLDB. Try `:LInfo` for plugin info and see README for details.' | echohl None
-    return
-  endif
-
-  call term_setapi(s:lldb_buf, "Lldbapi_")
-  set modified
-
-  if g:lldb_orientation == 1
-    exe (&columns / g:lldb_width - 1) . "wincmd | "
-  endif 
-
-  let s:lldbwin = win_getid(winnr())
-  let s:lldb_term_running = 1
-
-  " use new terminal as lldb output
-  if 0
+  " remove for single pane
+  let s:ui_split = 1
+  " use terminal as lldb output
+  if exists('s:ui_split')
     let s:lldb_comms_buf = term_start('NONE', {
-          \ 'term_name': 'debugged program',
+          \ 'term_name': 'debugger output',
           \ 'vertical': 1,
           \ 'hidden': 0,
           \})
     let pty_out = job_info(term_getjob(s:lldb_comms_buf))['tty_out']
-    " set output file 
-    call s:SendCommand('set_output -tty ' . pty_out . ' -internal')
+
+    if g:lldb_orientation == 1
+      exe (&columns / g:lldb_width - 1) . "wincmd | "
+    endif 
+
   endif
+
+  " set up custom lldb runner
+  if exists('s:lldb_custom')
+    let cmd = python_path . ' ' . python_script_dir . '/lldb_runner.py'
+    let term_opts = {
+         \ 'term_name': 'lldb_runner',
+         \ 'vertical': g:lldb_orientation,
+         \ 'term_finish': 'close',
+         \ 'hidden': 0,
+         \ 'norestore': 1
+         \}
+
+    " lldb runner launched in new terminal
+    "let s:lldb_buf = term_start(cmd, term_opts)
+    call job_setoptions(term_getjob(s:lldb_native_buf), {'exit_cb': function('s:EndTermDebug')})
+
+    if s:lldb_buf == 0
+      echohl WarningMsg python_path . ' failed to open LLDB. Try `:LInfo` for plugin info and see README for details.' | echohl None
+      return
+    endif
+
+    " move terminal to bottom by default
+    exe 'wincmd J | resize 10'
+  endif
+
+
+  set modified
+
+  let s:lldbwin = win_getid(winnr())
+  let s:lldb_term_running = 1
+
+  " set output file - must happen after terminal is running
+  if exists('s:ui_split')
+    "call s:SendCommand('set_output -tty ' . pty_out . ' -internal')
+  endif
+
+
+  let s:lldb_native_buf = term_start(s:GetLLDBPath(), {
+        \ 'term_name': 'lldb',
+        \ 'vertical': 1,
+        \ 'hidden': 0,
+        \})
+
+  " TODO custom exit_cb
+  call job_setoptions(term_getjob(s:lldb_native_buf), {'exit_cb': function('s:EndTermDebug')})
+
+  if s:lldb_native_buf == 0
+    echohl WarningMsg python_path . ' failed to open LLDB. Try `:LInfo` for plugin info and see README for details.' | echohl None
+    return
+  endif
+
+  "call term_setapi(s:lldb_buf, "Lldbapi_")
+  call term_setapi(s:lldb_native_buf, "Lldbapi_")
+
+  " import custom commands into native LLDB
+  let python_cmds = python_script_dir . '/lldb_commands.py'
+  call s:SendCommand('command script import ' . python_cmds)
+
+  " TODO clear LLDB console
+  " redirect LLDB output
+  call s:SendCommand('set_tty ' . pty_out)
 
   call s:StartDebug_common()
 endfunc
@@ -260,7 +293,16 @@ func s:DeleteCommands()
 endfunc
 
 func s:EndTermDebug(job, status)
-  exe 'bwipe! ' . s:lldb_buf
+  "TODO check if buffers, values exist
+  if exists('s:lldb_native_buf')
+    exe 'bwipe! ' . s:lldb_native_buf
+  endif
+  if exists('s:lldb_buf')
+    exe 'bwipe! ' . s:lldb_buf
+  endif
+  if exists('s:lldb_comms_buf')
+    exe 'bwipe! ' . s:lldb_comms_buf
+  endif
   call s:DeleteCommands()
   call s:UI_RemoveBreakpoints()
   call s:UI_RemoveHighlightLine()
@@ -274,11 +316,13 @@ func s:SendCommand(cmd)
   call ch_log('sending to lldb: ' . a:cmd)
 
   " delete any text user has input in lldb terminal before sending a command
-  let current_lldb_cmd_line = trim(term_getline(s:lldb_buf, '.'))
+  let current_lldb_cmd_line = trim(term_getline(s:lldb_native_buf, '.'))
   if current_lldb_cmd_line !=# '(lldb)' && len(current_lldb_cmd_line) > 0
-    call term_sendkeys(s:lldb_buf, 'wipe -internal ' . "\r")
+    echomsg 'clear data placeholder'
+    "exe 'termwinkey CTRL-C'
+    "call term_sendkeys(s:lldb_native_buf, 'wipe -internal ' . "\r")
   endif
-  call term_sendkeys(s:lldb_buf, a:cmd . "\r")
+  call term_sendkeys(s:lldb_native_buf, a:cmd . "\r")
 endfunc
 
 
@@ -371,7 +415,7 @@ func s:UI_HighlightLine(res)
 
   " jump to source window if in lldb terminal
   " drop will create a new window if source window was previously deleted
-  if bufnr() == s:lldb_buf
+  if bufnr() == s:lldb_native_buf
     call win_gotoid(s:sourcewin)
   endif
 
@@ -394,7 +438,13 @@ endfunc
 " parse response and update Vim instance when necessary
 func! g:Lldbapi_LldbOutCb(bufnum, args)
   let resp = a:args[0]
+  echomsg 'args: ' . resp
   call ch_log('lldb> : ' . resp)
+
+  " ignore help related
+  if resp =~? 'debugger commands'
+    return
+  endif
 
   "
   " Process
