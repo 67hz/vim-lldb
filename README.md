@@ -29,11 +29,14 @@ vim-lldb offers some convenience commands for easy mapping.
 | Command           | List                                                                    |
 | ---               | ---                                                                     |
 | `:Lldb`          |  Jump to lldb terminal window |
+| `:LSource`          |  Jump to source window |
 | `:LBreak`          | Toggle breakpoint under cursor                                |
 | `:LStep`          | Step |
 | `:LNext`          | Next
 | `:LPrint`          | Print variable under cursor |
+| `:LRun`          | Run target |
 | `:LInfo`          | Display system info (useful for troubleshooting setup)         | 
+
 
 
 Customization

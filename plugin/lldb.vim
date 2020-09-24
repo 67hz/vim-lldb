@@ -115,6 +115,7 @@ func! s:StartDebug_common()
   call sign_define('lldb_active', {'linehl': 'debugPC'})
 
   call s:InstallCommands()
+  call win_gotoid(s:lldbwin)
 endfunc
 
 func! s:StartDebug_term()
@@ -166,7 +167,7 @@ func! s:StartDebug_term()
   let s:lldb_term_running = 1
 
   " use new terminal as lldb output
-  if 0
+  if 1
     let s:lldb_comms_buf = term_start('NONE', {
           \ 'term_name': 'debugged program',
           \ 'vertical': 1,
@@ -260,7 +261,12 @@ func s:DeleteCommands()
 endfunc
 
 func s:EndTermDebug(job, status)
-  exe 'bwipe! ' . s:lldb_buf
+  if exists('s:lldb_buf')
+    exe 'bwipe! ' . s:lldb_buf
+  endif
+  if exists('s:lldb_comms_buf')
+    exe 'bwipe! ' . s:lldb_comms_buf
+  endif
   call s:DeleteCommands()
   call s:UI_RemoveBreakpoints()
   call s:UI_RemoveHighlightLine()
@@ -395,6 +401,11 @@ endfunc
 func! g:Lldbapi_LldbOutCb(bufnum, args)
   let resp = a:args[0]
   call ch_log('lldb> : ' . resp)
+
+  " ignore help related
+  if resp =~? 'debugger commands'
+    return
+  endif
 
   "
   " Process
