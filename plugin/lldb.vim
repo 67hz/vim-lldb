@@ -208,7 +208,7 @@ func! s:StartDebug_term()
 
   " TODO clear LLDB console
   " redirect LLDB output
-  call s:SendCommand('set_tty ' . pty_out)
+  call s:SendCommand('set_log_tty ' . pty_out)
 
   call s:StartDebug_common()
 endfunc
@@ -368,7 +368,7 @@ func s:ToggleBreakpoint()
 endfunc
 
 func s:GetBreakpoints()
-  call s:SendCommand('bp_sync -internal')
+  call s:SendCommand('bp_dict')
 endfunc
 
 func s:UI_RemoveBreakpoints()
@@ -430,6 +430,22 @@ func s:UI_HighlightLine(res)
 
   " place cursor back in lldb's terminal
   call win_gotoid(s:lldbwin)
+
+endfunc
+
+
+func! g:Lldbapi_LldbParseLogs(bufnum, args)
+  let cmd = a:args[0]
+  let resp = a:args[1] 
+  echomsg '[PARSER] cmd: ' . cmd . ' resp: ' . resp
+
+  if resp =~? 'Breakpoint\|executable set' && resp !~? 'warning\|pending\|process'
+    if resp =~? 'updated'
+      call s:UI_SyncBreakpoints(a:args[1])
+    else
+      call s:GetBreakpoints()
+    endif
+  endif
 
 endfunc
 

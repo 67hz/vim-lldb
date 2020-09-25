@@ -13,6 +13,8 @@ from sys import __stdout__
 from re import compile, VERBOSE, search, sub
 from threading import Thread
 
+OUTFD = ''
+
 
 # 7/8-bit C1 ANSI sequences
 ansi_escape = compile(
@@ -32,7 +34,7 @@ def escapeQuotes(res):
 def vimOutCb(res, data = ''):
     """ Escape sequence to trap into Vim's cb channel.
         See :help term_sendkeys for job -> vim communication """
-    print('\033]51;["call","Lldbapi_LldbOutCb", ["{}", "{}"]]\007'.format(escapeQuotes(res), data))
+    print('\033]51;["call","Lldbapi_LldbParseLogs", ["{}", "{}"]]\007'.format(escapeQuotes(res), data))
 
 def vimErrCb(err):
     print('\033]51;["call","Lldbapi_LldbErrCb",["{}"]]\007'.format(escapeQuotes(err)))
@@ -41,19 +43,19 @@ def get_tty(debugger, command, result, internal_dict):
     handle = debugger.GetOutputFileHandle()
     result.write('tty output: %s'% handle)
 
-def set_tty(debugger, command, result, internal_dict):
+def set_log_tty(debugger, command, result, internal_dict):
     args = shlex.split(command)
+    global OUT_FD
+    OUTFD = __stdout__
     if len(args) > 0:
         path = args[0].strip()
         print('path:%s'% path)
         OUT_FD = open(path, "w")
 
-    res = lldb.SBCommandReturnObject()
-
-    debugger.SetOutputFileHandle(OUT_FD, True)
-    handle = debugger.GetOutputFileHandle()
-    result.write('handle: %s'% handle.name)
-    result.PutOutput(handle)
+    #debugger.SetOutputFileHandle(OUT_FD, True)
+    #handle = debugger.GetOutputFileHandle()
+    #result.write('logging to fd: %s'% OUT_FD.name)
+    #result.PutOutput(handle)
 
 
 def bp_dict(debugger, command, result, internal_dict):
@@ -105,7 +107,13 @@ def EventThreadLoop(debugger):
 
 """ Parsing logs avoids the overhead of multithreading for an event loop """
 def log_cb(msg):
-    vimOutCb('logging', msg)
+    if lldb.debugger is not None:
+        print('debugger %s'% lldb.debugger)
+
+    if OUT_FD:
+        OUT_FD.write(msg)
+
+    vimOutCb('lldb-log', msg)
 
 
 if __name__ == '__main__':
@@ -117,14 +125,13 @@ elif lldb.debugger:
     # apropros log
     lldb.debugger.SetPrompt('(vim-lldb)')
     lldb.debugger.SetLoggingCallback(log_cb)
-    lldb.debugger.EnableLog('lldb', ['break'])
-
+    lldb.debugger.EnableLog('lldb', ['break', 'target'])
     lldb.debugger.HandleCommand('command script add -f lldb_commands.bp_dict bp_dict')
     print('The "bpdict" command has been installed')
     lldb.debugger.HandleCommand('command script add -f lldb_commands.line_at_frame line_at_frame')
     print('The "line_at_frame" command has been installed')
-    lldb.debugger.HandleCommand('command script add -f lldb_commands.set_tty set_tty')
-    print('The "set_tty" command has been installed')
+    lldb.debugger.HandleCommand('command script add -f lldb_commands.set_log_tty set_log_tty')
+    print('The "set_log_tty" command has been installed')
     lldb.debugger.HandleCommand('command script add -f lldb_commands.get_tty get_tty')
     print('The "get_tty" command has been installed')
 
