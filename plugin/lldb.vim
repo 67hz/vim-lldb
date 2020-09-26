@@ -12,11 +12,9 @@
 "
 " TODO:
 " * add help docs
-" * add tab completion for commands
 " * add Windows support
 " * add prompt fallback if '-terminal'
 " * add GDB-like layouts for predefined UI setup (e.g., layout reg)
-" * add panel for additional python interpreter if user requests 'script'
 "
 ""
 
@@ -133,9 +131,9 @@ func! s:StartDebug_term()
   let s:sourcewin = win_getid(winnr())
 
   " remove for single pane
-  let s:ui_split = 1
+  let s:debug = 1
   " use terminal as lldb output
-  if exists('s:ui_split')
+  if exists('s:debug')
     let s:lldb_comms_buf = term_start('NONE', {
           \ 'term_name': 'debugger output',
           \ 'vertical': 1,
@@ -146,7 +144,6 @@ func! s:StartDebug_term()
     if g:lldb_orientation == 1
       exe (&columns / g:lldb_width - 1) . "wincmd | "
     endif 
-
   endif
 
   set modified
@@ -175,8 +172,7 @@ func! s:StartDebug_term()
   let python_cmds = python_script_dir . '/lldb_commands.py'
   call s:SendCommand('command script import ' . python_cmds)
 
-  " TODO clear LLDB console
-  " redirect LLDB output
+  " redirect LLDB log output
   call s:SendCommand('set_log_tty ' . pty_out)
 
   call s:StartDebug_common()
@@ -333,10 +329,6 @@ func s:ToggleBreakpoint()
   endif
 endfunc
 
-func s:GetBreakpoints()
-  "call s:SendCommand('bp_dict')
-endfunc
-
 func s:UI_RemoveBreakpoints()
   unlet s:breakpoints
   call sign_unplace('bps')
@@ -403,11 +395,6 @@ func! g:Lldbapi_LldbParseLogs(bufnum, args)
   let cmd = a:args[0]
   let resp = a:args[1] 
   echomsg '[PARSER] cmd: ' . cmd . ' resp: ' . resp
-
-  if resp =~? 'breakpoint\|executable set' && resp !~? 'warning\|pending\|process'
-      call s:GetBreakpoints()
-  endif
-
 endfunc
 
 
