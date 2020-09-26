@@ -149,40 +149,7 @@ func! s:StartDebug_term()
 
   endif
 
-  " set up custom lldb runner
-  if exists('s:lldb_custom')
-    let cmd = python_path . ' ' . python_script_dir . '/lldb_runner.py'
-    let term_opts = {
-         \ 'term_name': 'lldb_runner',
-         \ 'vertical': g:lldb_orientation,
-         \ 'term_finish': 'close',
-         \ 'hidden': 0,
-         \ 'norestore': 1
-         \}
-
-    " lldb runner launched in new terminal
-    "let s:lldb_buf = term_start(cmd, term_opts)
-    call job_setoptions(term_getjob(s:lldb_native_buf), {'exit_cb': function('s:EndTermDebug')})
-
-    if s:lldb_buf == 0
-      echohl WarningMsg python_path . ' failed to open LLDB. Try `:LInfo` for plugin info and see README for details.' | echohl None
-      return
-    endif
-
-    " move terminal to bottom by default
-    exe 'wincmd J | resize 10'
-  endif
-
-
   set modified
-
-  let s:lldbwin = win_getid(winnr())
-  let s:lldb_term_running = 1
-
-  " set output file - must happen after terminal is running
-  if exists('s:ui_split')
-    "call s:SendCommand('set_output -tty ' . pty_out . ' -internal')
-  endif
 
 
   let s:lldb_native_buf = term_start(s:GetLLDBPath(), {
@@ -199,7 +166,9 @@ func! s:StartDebug_term()
     return
   endif
 
-  "call term_setapi(s:lldb_buf, "Lldbapi_")
+  let s:lldbwin = win_getid(winnr())
+  let s:lldb_term_running = 1
+
   call term_setapi(s:lldb_native_buf, "Lldbapi_")
 
   " import custom commands into native LLDB
@@ -297,9 +266,6 @@ func s:EndTermDebug(job, status)
   if exists('s:lldb_native_buf')
     exe 'bwipe! ' . s:lldb_native_buf
   endif
-  if exists('s:lldb_buf')
-    exe 'bwipe! ' . s:lldb_buf
-  endif
   if exists('s:lldb_comms_buf')
     exe 'bwipe! ' . s:lldb_comms_buf
   endif
@@ -368,7 +334,7 @@ func s:ToggleBreakpoint()
 endfunc
 
 func s:GetBreakpoints()
-  call s:SendCommand('bp_dict')
+  "call s:SendCommand('bp_dict')
 endfunc
 
 func s:UI_RemoveBreakpoints()
@@ -439,12 +405,8 @@ func! g:Lldbapi_LldbParseLogs(bufnum, args)
   let resp = a:args[1] 
   echomsg '[PARSER] cmd: ' . cmd . ' resp: ' . resp
 
-  if resp =~? 'Breakpoint\|executable set' && resp !~? 'warning\|pending\|process'
-    if resp =~? 'updated'
-      call s:UI_SyncBreakpoints(a:args[1])
-    else
+  if resp =~? 'breakpoint\|executable set' && resp !~? 'warning\|pending\|process'
       call s:GetBreakpoints()
-    endif
   endif
 
 endfunc
@@ -454,7 +416,6 @@ endfunc
 " parse response and update Vim instance when necessary
 func! g:Lldbapi_LldbOutCb(bufnum, args)
   let resp = a:args[0]
-  echomsg 'args: ' . resp
   call ch_log('lldb> : ' . resp)
 
   " ignore help related
@@ -484,8 +445,6 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
   elseif resp =~? 'Breakpoint\|executable set' && resp !~? 'warning\|pending\|process'
     if resp =~? 'updated'
       call s:UI_SyncBreakpoints(a:args[1])
-    else
-      call s:GetBreakpoints()
     endif
   
   "

@@ -11,10 +11,9 @@ import shlex
 import optparse
 from sys import __stdout__
 from re import compile, VERBOSE, search, sub
-from threading import Thread
+import threading
 
-OUTFD = ''
-
+OUT_FD = None
 
 # 7/8-bit C1 ANSI sequences
 ansi_escape = compile(
@@ -31,22 +30,29 @@ def escapeQuotes(res):
     res = res.replace("'", '\\\"')
     return res
 
-def vimOutCb(res, data = ''):
+def vimOutCb(method, res, data = ''):
     """ Escape sequence to trap into Vim's cb channel.
         See :help term_sendkeys for job -> vim communication """
-    print('\033]51;["call","Lldbapi_LldbParseLogs", ["{}", "{}"]]\007'.format(escapeQuotes(res), data))
+    print('\033]51;["call","Lldbapi_Lldb{}", ["{}", "{}"]]\007'.format(method, escapeQuotes(res), data))
 
 def vimErrCb(err):
     print('\033]51;["call","Lldbapi_LldbErrCb",["{}"]]\007'.format(escapeQuotes(err)))
+
+
+
+#
+# Define custom commands for LLDB
+#
 
 def get_tty(debugger, command, result, internal_dict):
     handle = debugger.GetOutputFileHandle()
     result.write('tty output: %s'% handle)
 
 def set_log_tty(debugger, command, result, internal_dict):
+    """ set log output tty """
     args = shlex.split(command)
     global OUT_FD
-    OUTFD = __stdout__
+    OUT_FD = __stdout__
     if len(args) > 0:
         path = args[0].strip()
         print('path:%s'% path)
@@ -57,10 +63,12 @@ def set_log_tty(debugger, command, result, internal_dict):
     #result.write('logging to fd: %s'% OUT_FD.name)
     #result.PutOutput(handle)
 
+# TODO - this does not need to be a custom command, call lldb directly to avoid
+# displaying in prompt
 
 def bp_dict(debugger, command, result, internal_dict):
     """ return a breakpoint dict of form = {'filename:line_nr': [id, id, ...]} """
-    target = lldb.debugger.GetSelectedTarget()
+    target = debugger.GetSelectedTarget()
     id_dict = {}
 
     for bp in target.breakpoint_iter():
@@ -72,8 +80,8 @@ def bp_dict(debugger, command, result, internal_dict):
             else:
                 id_dict[key] = [bp.GetID()]
 
-    vimOutCb('breakpoint updated', id_dict)
-    print(id_dict)
+    #print(id_dict)
+    vimOutCb('OutCb', 'breakpoint updated', id_dict)
 
 def line_at_frame(debugger, command, result, internal_dict):
     """ return the source file's line # based on a the selected frame """
@@ -84,48 +92,78 @@ def line_at_frame(debugger, command, result, internal_dict):
             frame = thread.GetSelectedFrame()
             if frame is not None:
                 path = frame.GetPCAddress().GetLineEntry()
-                vimOutCb('current file', path)
+                vimOutCb('OutCb','current file', path)
     else:
-        print("Unable to get a line entry for frame")
+        vimErrCb("Unable to get a line entry for frame")
+
 
 
 
 # TODO run in separate thread
 # use logging callback to launch once an active thread is established
-def EventThreadLoop(debugger):
-    """ main loop to listen for LLDB events """
-    event = lldb.SBEvent()
-    listener = debugger.GetListener()
-    done = False
+class EventListeningThread(threading.Thread):
+    def run(self):
+        """ main loop to listen for LLDB events """
+        event = lldb.SBEvent()
+        listener = lldb.debugger.GetListener()
+        num_tries = 5
 
-    while not done:
-        if listener.WaitForEvent(1, event):
-            ev_mask = event.GetType()
-            print('type: %s', ev_mask)
+        while True:
+            print('listening: %s'% listener)
+            if listener.WaitForEvent(1, event):
+                print('hello')
+                ev_mask = event.GetType()
+                print('type: %s', ev_mask)
+            num_tries -= 1
+            if num_tries == 0:
+                break
+        listener.Clear()
+        return
 
 
 
-""" Parsing logs avoids the overhead of multithreading for an event loop """
+""" Send logs off to Vim for parsing """
 def log_cb(msg):
-    if lldb.debugger is not None:
-        print('debugger %s'% lldb.debugger)
-
+    # output logs for debugging only
     if OUT_FD:
+        print('still out')
         OUT_FD.write(msg)
 
-    vimOutCb('lldb-log', msg)
+    if 0:
+        log_id = compile(r'\d*?\.\d*\s?')
+        heading = compile('(\w*)\:\:(\w*)')
+        header = search(heading, msg)
+        print('parent: ', header.group(1))
+        print('sub: ', header.group(2))
+
+        if header.group(1) == 'Target':
+            if header.group(2) == 'Target':
+                print('New Target')
+            if header.group(2) == 'AddBreakpoint':
+                print(DBG)
+                DBG.HandleCommand('bp_dict')
+
+        vimOutCb('ParseLogs', 'lldb-log', msg)
 
 
-if __name__ == '__main__':
-    # create a new debugger instance if running from CLI
-    lldb.debugger = lldb.SBDebugger.Create()
-elif lldb.debugger:
+
+
+
+
+def __lldb_init_module(debugger, internal_dict):
     # initialize global setup here
     # for lldb->vim comms use vimOutCb or logging or override HandleCommand globally?
     # apropros log
     lldb.debugger.SetPrompt('(vim-lldb)')
     lldb.debugger.SetLoggingCallback(log_cb)
-    lldb.debugger.EnableLog('lldb', ['break', 'target'])
+
+    global DBG
+    DBG = lldb.debugger
+
+    # (lldb) log list  - list channels/categories
+    #lldb.debugger.EnableLog('lldb', ['break', 'target', 'step'])
+    lldb.debugger.EnableLog('lldb', ['default'])
+
     lldb.debugger.HandleCommand('command script add -f lldb_commands.bp_dict bp_dict')
     print('The "bpdict" command has been installed')
     lldb.debugger.HandleCommand('command script add -f lldb_commands.line_at_frame line_at_frame')
@@ -135,9 +173,16 @@ elif lldb.debugger:
     lldb.debugger.HandleCommand('command script add -f lldb_commands.get_tty get_tty')
     print('The "get_tty" command has been installed')
 
+
+
+
     if 0:
-        t_events = Thread(target=EventThreadLoop, args=(lldb.debugger,))
-        t_events.setDaemon(True)
-        t_events.start()
-        t_events.join()
+        eventsThread = EventListeningThread()
+        eventsThread.context = debugger
+        #eventsThread.setDaemon(True)
+        eventsThread.start()
+        eventsThread.join()
+
+
+
 
