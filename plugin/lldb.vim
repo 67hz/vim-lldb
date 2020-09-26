@@ -149,7 +149,9 @@ func! s:StartDebug_term()
   set modified
 
 
-  let s:lldb_native_buf = term_start(s:GetLLDBPath(), {
+  let cmd = python_path . ' ' . python_script_dir . '/lldb_commands.py'
+  echomsg 'cmd: ' . cmd
+  let s:lldb_native_buf = term_start(cmd, {
         \ 'term_name': 'lldb',
         \ 'vertical': 1,
         \ 'hidden': 0,

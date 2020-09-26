@@ -104,7 +104,7 @@ def line_at_frame(debugger, command, result, internal_dict):
 
 def getSelectedFrame():
     frame = None
-    for thread in DBG.GetSelectedTarget().GetProcess():
+    for thread in lldb.debugger.GetSelectedTarget().GetProcess():
         frame = thread.GetSelectedFrame()
 
     return frame
@@ -174,12 +174,12 @@ class EventListeningThread(threading.Thread):
 
 
 def listen():
-    listener = DBG.GetListener()
-    process = DBG.GetSelectedTarget().GetProcess()
-    print('Target: %s'% DBG.GetSelectedTarget())
+    listener = lldb.debugger.GetListener()
+    process = lldb.debugger.GetSelectedTarget().GetProcess()
+    print('Target: %s'% lldb.debugger.GetSelectedTarget())
 
     if process is not None:
-        print('process: %s'% DBG.StateAsCString(process.GetState()))
+        print('process: %s'% lldb.debugger.StateAsCString(process.GetState()))
         broadcaster = process.GetBroadcaster()
         event = lldb.SBEvent()
         listener = lldb.SBListener('my listener')
@@ -209,7 +209,7 @@ def log_cb(msg):
         header = search(cmd, msg)
         #print('cmd: ', header.group(0))
         if header.group(0).strip() == 'Added location':
-            DBG.HandleCommand('bp_dict')
+            lldb.debugger.HandleCommand('bp_dict')
         return
 
     #print('parent: ', header.group(1))
@@ -224,7 +224,7 @@ def log_cb(msg):
             return
         if header.group(2) == 'DisableBreakpointByID':
             # bps not ready yet
-            DBG.HandleCommand('bp_dict')
+            lldb.debugger.HandleCommand('bp_dict')
             return
 
     elif header.group(1) == 'ThreadList':
@@ -247,11 +247,17 @@ class LLDB():
 
     def __init__(self):
         """ set up a blank debugger instance. let the user decide options, targets,... """
-        self.dbg = lldb.SBDebugger.Create()
-        self.ci = self.dbg.GetCommandInterpreter()
-        self.dbg.SetPrompt('(vim-lldb)')
+        lldb.debugger = lldb.SBDebugger.Create()
+        #self.ci = lldb.debugger.GetCommandInterpreter()
+        lldb.debugger.SetPrompt('(vim-lldb)')
         # do not return from function until process stops during step/continue
-        self.dbg.SetAsync(False)
+        lldb.debugger.SetAsync(False)
+
+        # (lldb) log list  - list channels/categories
+        lldb.debugger.EnableLog('lldb', ['break', 'target', 'step'])
+        #lldb.debugger.EnableLog('lldb', ['default'])
+        #lldb.debugger.EnableLog('lldb', ['event'])
+        lldb.debugger.SetLoggingCallback(log_cb)
 
         handle_events = True
         spawn_thread = False
@@ -262,42 +268,87 @@ class LLDB():
         options.SetEchoCommands(True)
         options.SetStopOnError(False)
         options.SetStopOnCrash(False)
-        options.SetStopOnContinue(False)
+        options.SetStopOnContinue(True)
         options.SetPrintResults(True)
-        self.dbg.RunCommandInterpreter(handle_events, spawn_thread, options, num_errors, quit_requested, stopped_on_crash)
+
+
+        result = lldb.debugger.RunCommandInterpreter(handle_events, spawn_thread, options, num_errors, quit_requested, stopped_on_crash)
+
+        #lldb.debugger.HandleCommand('command script add -f lldb_commands.set_log_tty set_log_tty')
+        lldb.debugger.HandleCommand('command script add -f lldb_commands.get_tty get_tty')
+        print('result of running %s'% result)
 
 
 
-LLDB()
 
 
+"""
+        self.dbg.HandleCommand('command script add -f lldb_commands.bp_dict bp_dict')
+        print('The "bpdict" command has been installed')
+        self.dbg.HandleCommand('command script add -f lldb_commands.line_at_frame line_at_frame')
+        print('The "line_at_frame" command has been installed')
+        self.dbg.HandleCommand('command script add -f lldb_commands.set_log_tty set_log_tty')
+        print('The "set_log_tty" command has been installed')
+        self.dbg.HandleCommand('command script add -f lldb_commands.get_tty get_tty')
+        print('The "get_tty" command has been installed')
+        global lldb.debugger
+        lldb.debugger = self.dbg
+        """
 
-
-def __lldb_init_module(debugger, internal_dict):
-    # initialize global setup here
-    # for lldb->vim comms use vimOutCb or logging or override HandleCommand globally?
-    # apropros log
+if __name__ == '__main__':
+    lldb.debugger = lldb.SBDebugger.Create()
+    #self.ci = lldb.debugger.GetCommandInterpreter()
     lldb.debugger.SetPrompt('(vim-lldb)')
-    lldb.debugger.SetLoggingCallback(log_cb)
-
-    global DBG
-    DBG = lldb.debugger
+    # do not return from function until process stops during step/continue
+    lldb.debugger.SetAsync(False)
 
     # (lldb) log list  - list channels/categories
     lldb.debugger.EnableLog('lldb', ['break', 'target', 'step'])
     #lldb.debugger.EnableLog('lldb', ['default'])
     #lldb.debugger.EnableLog('lldb', ['event'])
+    lldb.debugger.SetLoggingCallback(log_cb)
 
-    lldb.debugger.HandleCommand('command script add -f lldb_commands.bp_dict bp_dict')
+    handle_events = True
+    spawn_thread = False
+    num_errors = 10
+    quit_requested = True
+    stopped_on_crash = True
+    options = lldb.SBCommandInterpreterRunOptions()
+    options.SetEchoCommands(True)
+    options.SetStopOnError(False)
+    options.SetStopOnCrash(False)
+    options.SetStopOnContinue(True)
+    options.SetPrintResults(True)
+
+
+    lldb.debugger.RunCommandInterpreter(handle_events, spawn_thread, options, num_errors, quit_requested, stopped_on_crash)
+
+
+
+
+
+
+def __lldb_init_module(debugger, internal_dict):
+    """ called when importing this module into the lldb interpreter """
+    # for lldb->vim comms use vimOutCb or logging or override HandleCommand globally?
+    # apropros log
+    debugger.SetLoggingCallback(log_cb)
+
+    # (lldb) log list  - list channels/categories
+    debugger.EnableLog('lldb', ['break', 'target', 'step'])
+    #lldb.debugger.EnableLog('lldb', ['default'])
+    #lldb.debugger.EnableLog('lldb', ['event'])
+
+    debugger.HandleCommand('command script add -f lldb_commands.bp_dict bp_dict')
     print('The "bpdict" command has been installed')
-    lldb.debugger.HandleCommand('command script add -f lldb_commands.line_at_frame line_at_frame')
+    debugger.HandleCommand('command script add -f lldb_commands.line_at_frame line_at_frame')
     print('The "line_at_frame" command has been installed')
-    lldb.debugger.HandleCommand('command script add -f lldb_commands.set_log_tty set_log_tty')
+    debugger.HandleCommand('command script add -f lldb_commands.set_log_tty set_log_tty')
     print('The "set_log_tty" command has been installed')
-    lldb.debugger.HandleCommand('command script add -f lldb_commands.get_tty get_tty')
+    debugger.HandleCommand('command script add -f lldb_commands.get_tty get_tty')
     print('The "get_tty" command has been installed')
 
-    lldb.debugger.SetOutputFileHandle(__stdout__, True)
+    debugger.SetOutputFileHandle(__stdout__, True)
 
     if 0:
         eventsThread = EventListeningThread()
