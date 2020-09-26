@@ -370,7 +370,6 @@ func s:UI_RemoveHighlightLine()
 endfunc
 
 func s:UI_HighlightLine(res)
-
   " remove existing highlight
   call s:UI_RemoveHighlightLine()
 

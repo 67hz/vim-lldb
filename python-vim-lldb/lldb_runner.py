@@ -194,6 +194,11 @@ class LLDB(object):
         path = frame.GetPCAddress().GetLineEntry()
         return path
 
+    def getBreakpointAtFileLine(self, data):
+        args = parseArgs(data)
+        filename = args[1]
+        line_nr = args[2]
+        self.getAllBreakpoints()
 
     def getBreakpointDict(self):
         """ REVIEW is it necessary to store sub-ids of breakpoint, e.g. 1.2

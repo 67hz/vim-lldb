@@ -80,7 +80,7 @@ def bp_dict(debugger, command, result, internal_dict):
             else:
                 id_dict[key] = [bp.GetID()]
 
-    #print(id_dict)
+    print(id_dict)
     vimOutCb('OutCb', 'breakpoint updated', id_dict)
 
 def line_at_frame(debugger, command, result, internal_dict):
@@ -98,6 +98,66 @@ def line_at_frame(debugger, command, result, internal_dict):
 
 
 
+#
+# custom query helpers
+#
+
+def getSelectedFrame():
+    frame = None
+    for thread in DBG.GetSelectedTarget().GetProcess():
+        frame = thread.GetSelectedFrame()
+
+    return frame
+
+def getLineEntryFromFrame():
+    """ return full path from frame """
+    frame = getSelectedFrame()
+    path = frame.GetPCAddress().GetLineEntry()
+    return path
+
+def GetEvents(listener, broadcaster, num_tries):
+    event = lldb.SBEvent()
+    #print('ETHS: %s'% broadcaster.EventTypeHasListeners(5))
+    while True:
+        if listener.WaitForEventForBroadcasterWithType(5, broadcaster, lldb.SBProcess.eBroadcastBitStateChanged):
+            ev_mask = event.GetType()
+            print('got event')
+            print('event type: %s'% ev_mask)
+            break
+        num_tries -= 1
+        if num_tries == 0:
+            break
+
+
+    listener.Clear()
+    return
+
+
+#
+# lldb utils
+#
+def getDescription(obj, option = None):
+    if obj is None:
+        return None
+
+    desc = None
+    stream = lldb.SBStream()
+    get_desc_method = getattr(obj, 'GetDescription')
+
+    tuple = (lldb.SBTarget, lldb.SBBreakpointLocation, lldb.SBWatchpoint)
+    if isinstance(obj, tuple):
+        if option is None:
+            option = lldb.eDescriptionLevelVerbose
+
+    if option is None:
+        success = get_desc_method(stream)
+    else:
+        success = get_desc_method(stream, option)
+
+    if not success:
+        return None
+
+    return stream.GetData()
 
 # TODO run in separate thread
 # use logging callback to launch once an active thread is established
@@ -105,20 +165,30 @@ class EventListeningThread(threading.Thread):
     def run(self):
         """ main loop to listen for LLDB events """
         event = lldb.SBEvent()
+        Event
         listener = lldb.debugger.GetListener()
-        num_tries = 5
+        num_tries = 2
 
-        while True:
-            print('listening: %s'% listener)
-            if listener.WaitForEvent(1, event):
-                print('hello')
-                ev_mask = event.GetType()
-                print('type: %s', ev_mask)
-            num_tries -= 1
-            if num_tries == 0:
-                break
-        listener.Clear()
+        #GetEvents(listener, num_tries)
         return
+
+
+def listen():
+    listener = DBG.GetListener()
+    process = DBG.GetSelectedTarget().GetProcess()
+    print('Target: %s'% DBG.GetSelectedTarget())
+
+    if process is not None:
+        print('process: %s'% DBG.StateAsCString(process.GetState()))
+        broadcaster = process.GetBroadcaster()
+        event = lldb.SBEvent()
+        listener = lldb.SBListener('my listener')
+        rc = broadcaster.AddListener(listener, lldb.SBProcess.eBroadcastBitStateChanged)
+
+        if rc == 1:
+            print('rc: %s'% rc)
+            GetEvents(listener, broadcaster, 4)
+        
 
 
 
@@ -126,27 +196,40 @@ class EventListeningThread(threading.Thread):
 def log_cb(msg):
     # output logs for debugging only
     if OUT_FD:
-        print('still out')
         OUT_FD.write(msg)
+        #vimOutCb('ParseLogs', 'lldb-log', msg)
 
-    if 0:
-        log_id = compile(r'\d*?\.\d*\s?')
-        heading = compile('(\w*)\:\:(\w*)')
-        header = search(heading, msg)
-        print('parent: ', header.group(1))
-        print('sub: ', header.group(2))
-
-        if header.group(1) == 'Target':
-            if header.group(2) == 'Target':
-                print('New Target')
-            if header.group(2) == 'AddBreakpoint':
-                print(DBG)
-                DBG.HandleCommand('bp_dict')
-
-        vimOutCb('ParseLogs', 'lldb-log', msg)
+    log_id = compile(r'\d*?\.\d*\s?')
+    heading = compile('(\w*)\:\:(\w*)')
+    header = search(heading, msg)
+    #listen()
 
 
 
+    if not header:
+        cmd = compile(r'(?<=lldb)\s*(\w*\s*\w*)')
+        header = search(cmd, msg)
+        #print('cmd: ', header.group(0))
+        if header.group(0).strip() == 'Added location':
+            DBG.HandleCommand('bp_dict')
+        return
+
+
+    #print('parent: ', header.group(1))
+    #print('sub: ', header.group(2))
+
+    if header.group(1) == 'Target':
+        if header.group(2) == 'Target':
+            #print('New Target')
+            pass
+        if header.group(2) == 'AddBreakpoint':
+            # bps not ready yet
+            pass
+    elif header.group(1) == 'Process':
+        if header.group(2) == 'PerformAction':
+            frame = getLineEntryFromFrame()
+            print('le: ', frame)
+            vimOutCb('OutCb','current file', frame)
 
 
 
@@ -161,8 +244,9 @@ def __lldb_init_module(debugger, internal_dict):
     DBG = lldb.debugger
 
     # (lldb) log list  - list channels/categories
-    #lldb.debugger.EnableLog('lldb', ['break', 'target', 'step'])
-    lldb.debugger.EnableLog('lldb', ['default'])
+    lldb.debugger.EnableLog('lldb', ['break', 'target', 'step'])
+    #lldb.debugger.EnableLog('lldb', ['default'])
+    #lldb.debugger.EnableLog('lldb', ['event'])
 
     lldb.debugger.HandleCommand('command script add -f lldb_commands.bp_dict bp_dict')
     print('The "bpdict" command has been installed')
@@ -174,12 +258,10 @@ def __lldb_init_module(debugger, internal_dict):
     print('The "get_tty" command has been installed')
 
 
-
-
     if 0:
         eventsThread = EventListeningThread()
-        eventsThread.context = debugger
-        #eventsThread.setDaemon(True)
+        #eventsThread.context = debugger
+        eventsThread.setDaemon(True)
         eventsThread.start()
         eventsThread.join()
 
