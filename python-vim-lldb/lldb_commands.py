@@ -1,8 +1,6 @@
 #!/usr/bin/python
 
 # TODO: check loading init files doesn't break anything
-# See TestFrameUtils.py for get_args_as_string(frame0) and lldbutil.print_stacktrace(thread)
-# See lldb-vscode/lldb-vscode.cpp
 # SBHostOS: GetLLDBPath, GetLLDBPythonPath
 
 
@@ -159,7 +157,6 @@ def getDescription(obj, option = None):
 
     return stream.GetData()
 
-# TODO run in separate thread
 # use logging callback to launch once an active thread is established
 class EventListeningThread(threading.Thread):
     def run(self):
@@ -202,10 +199,8 @@ def log_cb(msg):
     log_id = compile(r'\d*?\.\d*\s?')
     heading = compile('(\w*)\:\:(\w*)')
     header = search(heading, msg)
-    #listen()
-
-
-
+    
+    # Below is a temp placeholder. This should be streamlined into a few basic flows based on select logging
     if not header:
         cmd = compile(r'(?<=lldb)\s*(\w*\s*\w*)')
         header = search(cmd, msg)
@@ -214,17 +209,26 @@ def log_cb(msg):
             DBG.HandleCommand('bp_dict')
         return
 
-
     #print('parent: ', header.group(1))
     #print('sub: ', header.group(2))
 
     if header.group(1) == 'Target':
         if header.group(2) == 'Target':
             #print('New Target')
-            pass
+            return
         if header.group(2) == 'AddBreakpoint':
             # bps not ready yet
-            pass
+            return
+        if header.group(2) == 'DisableBreakpointByID':
+            # bps not ready yet
+            DBG.HandleCommand('bp_dict')
+            return
+
+    elif header.group(1) == 'ThreadList':
+        if header.group(2) == 'ShouldStop':
+            frame = getLineEntryFromFrame()
+            print('le: ', frame)
+            vimOutCb('OutCb','current file', frame)
     elif header.group(1) == 'Process':
         if header.group(2) == 'PerformAction':
             frame = getLineEntryFromFrame()
@@ -257,6 +261,7 @@ def __lldb_init_module(debugger, internal_dict):
     lldb.debugger.HandleCommand('command script add -f lldb_commands.get_tty get_tty')
     print('The "get_tty" command has been installed')
 
+    lldb.debugger.SetOutputFileHandle(__stdout__, True)
 
     if 0:
         eventsThread = EventListeningThread()
