@@ -12,11 +12,9 @@
 "
 " TODO:
 " * add help docs
-" * add tab completion for commands
 " * add Windows support
 " * add prompt fallback if '-terminal'
 " * add GDB-like layouts for predefined UI setup (e.g., layout reg)
-" * add panel for additional python interpreter if user requests 'script'
 "
 ""
 
@@ -104,7 +102,7 @@ endif
 
 " set orientation of lldb - 0 - horizontal , 1 - vertical
 if !exists('g:lldb_orientation')
-  let g:lldb_orientation = 1
+  let g:lldb_orientation = 0
 endif
 
 
@@ -127,56 +125,55 @@ func! s:StartDebug_term()
     return
   endif
 
-
-  let s:sourcewin = win_getid(winnr())
-
   let python_path = s:GetPythonPath()
   let python_script_dir = s:GetPythonScriptDir()
 
+  let s:sourcewin = win_getid(winnr())
 
-  let cmd = python_path . ' ' . python_script_dir . '/lldb_runner.py'
-  let term_opts = {
-       \ 'term_name': 'lldb_runner',
-       \ 'vertical': g:lldb_orientation,
-       \ 'term_finish': 'close',
-       \ 'hidden': 0,
-       \ 'norestore': 1
-       \}
-
-  if exists('g:lldb_rows') && g:lldb_rows != 0
-    let term_opts['term_rows'] = g:lldb_rows
-  endif
-
-  " lldb runner launched in new terminal
-  let s:lldb_buf = term_start(cmd, term_opts)
-  call job_setoptions(term_getjob(s:lldb_buf), {'exit_cb': function('s:EndTermDebug')})
-
-  if s:lldb_buf == 0
-    echohl WarningMsg python_path . ' failed to open LLDB. Try `:LInfo` for plugin info and see README for details.' | echohl None
-    return
-  endif
-
-  call term_setapi(s:lldb_buf, "Lldbapi_")
-  set modified
-
-  if g:lldb_orientation == 1
-    exe (&columns / g:lldb_width - 1) . "wincmd | "
-  endif 
-
-  let s:lldbwin = win_getid(winnr())
-  let s:lldb_term_running = 1
-
-  " use new terminal as lldb output
-  if 1
+  " remove for single pane
+  let s:debug = 1
+  " use terminal as lldb output
+  if exists('s:debug')
     let s:lldb_comms_buf = term_start('NONE', {
-          \ 'term_name': 'debugged program',
+          \ 'term_name': 'debugger output',
           \ 'vertical': 1,
           \ 'hidden': 0,
           \})
     let pty_out = job_info(term_getjob(s:lldb_comms_buf))['tty_out']
-    " set output file 
-    call s:SendCommand('set_output -tty ' . pty_out . ' -internal')
+
+    if g:lldb_orientation == 1
+      exe (&columns / g:lldb_width - 1) . "wincmd | "
+    endif 
   endif
+
+  set modified
+
+
+  let s:lldb_native_buf = term_start(s:GetLLDBPath(), {
+        \ 'term_name': 'lldb',
+        \ 'vertical': 1,
+        \ 'hidden': 0,
+        \})
+
+  " TODO custom exit_cb
+  call job_setoptions(term_getjob(s:lldb_native_buf), {'exit_cb': function('s:EndTermDebug')})
+
+  if s:lldb_native_buf == 0
+    echohl WarningMsg python_path . ' failed to open LLDB. Try `:LInfo` for plugin info and see README for details.' | echohl None
+    return
+  endif
+
+  let s:lldbwin = win_getid(winnr())
+  let s:lldb_term_running = 1
+
+  call term_setapi(s:lldb_native_buf, "Lldbapi_")
+
+  " import custom commands into native LLDB
+  let python_cmds = python_script_dir . '/lldb_commands.py'
+  call s:SendCommand('command script import ' . python_cmds)
+
+  " redirect LLDB log output
+  call s:SendCommand('set_log_tty ' . pty_out)
 
   call s:StartDebug_common()
 endfunc
@@ -261,8 +258,9 @@ func s:DeleteCommands()
 endfunc
 
 func s:EndTermDebug(job, status)
-  if exists('s:lldb_buf')
-    exe 'bwipe! ' . s:lldb_buf
+  "TODO check if buffers, values exist
+  if exists('s:lldb_native_buf')
+    exe 'bwipe! ' . s:lldb_native_buf
   endif
   if exists('s:lldb_comms_buf')
     exe 'bwipe! ' . s:lldb_comms_buf
@@ -280,11 +278,13 @@ func s:SendCommand(cmd)
   call ch_log('sending to lldb: ' . a:cmd)
 
   " delete any text user has input in lldb terminal before sending a command
-  let current_lldb_cmd_line = trim(term_getline(s:lldb_buf, '.'))
+  let current_lldb_cmd_line = trim(term_getline(s:lldb_native_buf, '.'))
   if current_lldb_cmd_line !=# '(lldb)' && len(current_lldb_cmd_line) > 0
-    call term_sendkeys(s:lldb_buf, 'wipe -internal ' . "\r")
+    echomsg 'clear data placeholder'
+    "exe 'termwinkey CTRL-C'
+    "call term_sendkeys(s:lldb_native_buf, 'wipe -internal ' . "\r")
   endif
-  call term_sendkeys(s:lldb_buf, a:cmd . "\r")
+  call term_sendkeys(s:lldb_native_buf, a:cmd . "\r")
 endfunc
 
 
@@ -329,10 +329,6 @@ func s:ToggleBreakpoint()
   endif
 endfunc
 
-func s:GetBreakpoints()
-  call s:SendCommand('bp_sync -internal')
-endfunc
-
 func s:UI_RemoveBreakpoints()
   unlet s:breakpoints
   call sign_unplace('bps')
@@ -366,7 +362,6 @@ func s:UI_RemoveHighlightLine()
 endfunc
 
 func s:UI_HighlightLine(res)
-
   " remove existing highlight
   call s:UI_RemoveHighlightLine()
 
@@ -377,7 +372,7 @@ func s:UI_HighlightLine(res)
 
   " jump to source window if in lldb terminal
   " drop will create a new window if source window was previously deleted
-  if bufnr() == s:lldb_buf
+  if bufnr() == s:lldb_native_buf
     call win_gotoid(s:sourcewin)
   endif
 
@@ -393,6 +388,13 @@ func s:UI_HighlightLine(res)
   " place cursor back in lldb's terminal
   call win_gotoid(s:lldbwin)
 
+endfunc
+
+
+func! g:Lldbapi_LldbParseLogs(bufnum, args)
+  let cmd = a:args[0]
+  let resp = a:args[1] 
+  echomsg '[PARSER] cmd: ' . cmd . ' resp: ' . resp
 endfunc
 
 
@@ -429,8 +431,6 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
   elseif resp =~? 'Breakpoint\|executable set' && resp !~? 'warning\|pending\|process'
     if resp =~? 'updated'
       call s:UI_SyncBreakpoints(a:args[1])
-    else
-      call s:GetBreakpoints()
     endif
   
   "

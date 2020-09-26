@@ -135,9 +135,10 @@ class LLDB(object):
         cmd = data.replace('\n', ' ').replace('\r', '')
 
         if out_handle is not None:
+            # redirect stdout to *FILE
             f = open(out_handle, "w")
         else:
-            # default to stdout for output
+            # else default to stdout for output
             f = sys.__stdout__
 
         self.dbg.SetOutputFileHandle(f, True)
@@ -147,6 +148,7 @@ class LLDB(object):
         # keep target/process up to date
         self.syncSession(res)
 
+<<<<<<< HEAD
         #resolve_cmd = self.ci.ResolveCommand(cmd, res)
         #print('handle command: %s'% handle_cmd)
         #print('resolvecommand: %s'% resolve_cmd)
@@ -155,6 +157,9 @@ class LLDB(object):
         # write to redirected file
 
 
+=======
+        # TODO send separately for consumption by client UIs
+>>>>>>> feature/native-lldb
         if self.processState() is not None:
             print('process: %s'% self.getDescription(self.target.GetProcess()))
             print('thread: %s'% self.getDescription(self.process.GetSelectedThread()))
@@ -286,6 +291,11 @@ def startIOLoop(outcb, errcb):
 
 
 
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> feature/native-lldb
 # start LLDB interpreter if LLDB was imported
 if not lldbImported:
     print('\033]51;["call","Lldbapi_%s", ["%s"]]\007' %

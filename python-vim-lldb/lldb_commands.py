@@ -5,6 +5,7 @@
 #   SBHostOS: GetLLDBPath, GetLLDBPythonPath
 
 
+
 import lldb
 import shlex
 import optparse
@@ -117,11 +118,13 @@ def getLineEntryFromFrame():
 def GetEvents(listener, broadcaster, num_tries):
     event = lldb.SBEvent()
     print('ETHS: %s'% broadcaster.EventTypeHasListeners(5))
+
     while True:
         if listener.WaitForEventForBroadcasterWithType(5, broadcaster, lldb.SBProcess.eBroadcastBitStateChanged):
             ev_mask = event.GetType()
             print('got event')
             print('event type: %s'% ev_mask)
+            break
         num_tries -= 1
         if num_tries == 0:
             break
@@ -162,44 +165,17 @@ class EventListeningThread(threading.Thread):
     def run(self):
         """ main loop to listen for LLDB events """
         event = lldb.SBEvent()
-        listener = DBG.GetListener()
-        done = False
-        print('listener %s'% listener)
-        remaining_tries = 3
-        while not done and remaining_tries:
-            if listener.WaitForEvent(1, event):
-                event_mask = event.GetType()
-                print('event mask %s'% DBG.StateAsCString(lldb.SBProcess.GetStateFromEvent(event_mask)))
-                break
-            remaining_tries =- 1
+        Event
+        listener = lldb.debugger.GetListener()
+        num_tries = 2
 
-
-def eventListener():
-    global Listening
-    
-    event = lldb.SBEvent()
-    listener = DBG.GetListener()
-    done = False
-    remaining_tries = 3
-    while not done and remaining_tries != 0 and not Listening:
-        print('looping ', remaining_tries)
-        Listening = True
-        if listener.WaitForEvent(1, event):
-            print('got event')
-            event_mask = event.GetType()
-            print('event mask %s'% DBG.StateAsCString(lldb.SBProcess.GetStateFromEvent(event_mask)))
-            done = True
-        else:
-            print('no event:', remaining_tries)
-            remaining_tries -= 1
-            if remaining_tries == 0:
-                Listening == False
+        #GetEvents(listener, num_tries)
+        return
 
 
 def listen():
     listener = DBG.GetListener()
     process = DBG.GetSelectedTarget().GetProcess()
-
     print('Target: %s'% DBG.GetSelectedTarget())
 
     if process is not None:
@@ -254,12 +230,11 @@ def log_cb(msg):
     elif header.group(1) == 'ThreadList':
         if header.group(2) == 'ShouldStop':
             frame = getLineEntryFromFrame()
-            #print('le: ', frame)
+            print('le: ', frame)
             vimOutCb('OutCb','current file', frame)
     elif header.group(1) == 'Process':
         if header.group(2) == 'PerformAction':
             frame = getLineEntryFromFrame()
-            #print('le: ', frame)
             vimOutCb('OutCb','current file', frame)
 
 
@@ -295,6 +270,9 @@ class LLDB():
 
 LLDB()
 
+
+
+
 def __lldb_init_module(debugger, internal_dict):
     # initialize global setup here
     # for lldb->vim comms use vimOutCb or logging or override HandleCommand globally?
@@ -324,7 +302,7 @@ def __lldb_init_module(debugger, internal_dict):
     if 0:
         eventsThread = EventListeningThread()
         #eventsThread.context = debugger
-        #eventsThread.setDaemon(True)
+        eventsThread.setDaemon(True)
         eventsThread.start()
         eventsThread.join()
 
