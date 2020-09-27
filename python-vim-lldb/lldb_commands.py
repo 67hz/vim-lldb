@@ -34,10 +34,7 @@ def escapeQuotes(res):
 
 def JSON(obj):
     " create JSON from object and escape all quotes """
-    text = json.dumps(str(obj), ensure_ascii = True)
-    #text = text.replace('"', '\\\"')
-    #text = text.replace("'", '\\\"')
-    return text
+    return json.dumps(str(obj), ensure_ascii = True)
 
 def vimOutCb(method, res, data = ''):
     """ Escape sequence to trap into Vim's cb channel.
@@ -105,9 +102,9 @@ def getLineEntryFromFrame():
     path = frame.GetPCAddress().GetLineEntry()
     return path
 
-def breakpoints():
+def breakpoints(debugger):
     """ return a breakpoint dict of form = {'filename:line_nr': [id, id, ...]} """
-    target = lldb.debugger.GetSelectedTarget()
+    target = debugger.GetSelectedTarget()
     id_dict = {}
 
     for bp in target.breakpoint_iter():
@@ -166,13 +163,13 @@ class EventListeningThread(threading.Thread):
 
                 event_mask = event.GetType()
                 vimOutCb('OutCb', 'event', event_mask)
-                vimOutCb('OutCb', 'debugger', self.dbg)
+                #vimOutCb('OutCb', 'debugger', self.dbg)
 
                 if lldb.SBBreakpoint_EventIsBreakpointEvent(event):
                     bp = lldb.SBBreakpoint_GetBreakpointFromEvent(event)
-                    #bp_dict = breakpoints()
-                    vimOutCb('OutCb', 'breakpoint', bp)
-                    #vimOutCb('OutCb', 'breakpoint update', bp_dict)
+                    bp_dict = breakpoints(self.dbg)
+                    #vimOutCb('OutCb', 'breakpoint', bp)
+                    vimOutCb('OutCb', 'breakpoint', bp_dict)
 
 
                 elif lldb.SBTarget_EventIsTargetEvent(event):
