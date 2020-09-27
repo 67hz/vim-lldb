@@ -174,8 +174,9 @@ class EventListeningThread(threading.Thread):
                 vimOutCb('OutCb', 'event', event_mask)
                 if lldb.SBBreakpoint_EventIsBreakpointEvent(event):
                     bp = lldb.SBBreakpoint_GetBreakpointFromEvent(event)
+                    #bp_dict = breakpoints()
                     vimOutCb('OutCb', 'breakpoint', str(bp))
-                    #vimOutCb('OutCb', 'breakpoint update', breakpoints())
+                    #vimOutCb('OutCb', 'breakpoint update', bp_dict)
 
                 elif lldb.SBTarget_EventIsTargetEvent(event):
                     vimOutCb('OutCb', 'target', str(event))
@@ -269,17 +270,16 @@ class LLDBThread(threading.Thread):
 
 # @TODO kill events thread when LLDB stops
 if __name__ == '__main__':
-    counter = 0
+
     lldb.debugger = lldb.SBDebugger.Create()
     t_lldb = LLDBThread()
     t_lldb.start()
 
-    eventsThread = EventListeningThread()
-    #eventsThread.context = self
-    #eventsThread.setDaemon(True)
-    eventsThread.start()
+    t_events = EventListeningThread()
+    #t_events.setDaemon(True)
+    t_events.start()
     t_lldb.join()
-    eventsThread.join()
+    t_events.join()
 
 
 
