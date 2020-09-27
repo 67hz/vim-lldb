@@ -284,7 +284,7 @@ func s:SendCommand(cmd)
   " delete any text user has input in lldb terminal before sending a command
   let current_lldb_cmd_line = trim(term_getline(s:lldb_native_buf, '.'))
   if current_lldb_cmd_line !=# '(lldb)' && len(current_lldb_cmd_line) > 0
-    echomsg 'clear data placeholder'
+    "echomsg 'clear data placeholder'
     "exe 'termwinkey CTRL-C'
     "call term_sendkeys(s:lldb_native_buf, 'wipe -internal ' . "\r")
   endif
@@ -402,6 +402,7 @@ func! g:Lldbapi_LldbParseLogs(bufnum, args)
 endfunc
 
 
+
 " Called when lldb has new output
 " parse response and update Vim instance when necessary
 func! g:Lldbapi_LldbOutCb(bufnum, args)
@@ -414,15 +415,22 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
     return
   endif
 
+  if resp =~? 'breakpoint'
+    echomsg 'bp is:' . a:args[1]
+    call s:UI_SyncBreakpoints(a:args[1])
+
   "
   " Process
   "
-  if resp =~? 'process'
+  elseif resp =~? 'process'
     if resp =~? 'invalid\|exited\|finished'
       call s:UI_RemoveHighlightLine()
     else
       call s:GetAbsFilePathFromFrame()
     endif
+
+  elseif resp =~? 'target'
+    echomsg 'Got target event'
 
   "
   " Stepping
@@ -430,13 +438,6 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
   elseif resp =~? 'current file'
     call s:UI_HighlightLine(a:args[1])
 
-  "
-  " Sync Breakpoints
-  "
-  elseif resp =~? 'Breakpoint\|executable set' && resp !~? 'warning\|pending\|process'
-    if resp =~? 'updated'
-      call s:UI_SyncBreakpoints(a:args[1])
-    endif
   
   "
   " Default

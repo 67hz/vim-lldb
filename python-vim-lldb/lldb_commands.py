@@ -64,24 +64,8 @@ def set_log_tty(debugger, command, result, internal_dict):
     result.write('logging to fd: %s\n'% OUT_FD.name)
     result.PutOutput(handle)
 
-# TODO - this does not need to be a custom command, call LLDB directly to avoid
-# displaying in prompt
 
-def bp_dict(debugger, command, result, internal_dict):
-    """ return a breakpoint dict of form = {'filename:line_nr': [id, id, ...]} """
-    target = debugger.GetSelectedTarget()
-    id_dict = {}
 
-    for bp in target.breakpoint_iter():
-        for bl in bp:
-            loc = bl.GetAddress().GetLineEntry()
-            key = str(loc.GetFileSpec()) + ':' + str(loc.GetLine())
-            if key in id_dict:
-                id_dict[key].append(bp.GetID())
-            else:
-                id_dict[key] = [bp.GetID()]
-
-    vimOutCb('OutCb', 'breakpoint updated', id_dict)
 
 def line_at_frame(debugger, command, result, internal_dict):
     """ return the source file's line # based on a the selected frame """
@@ -115,6 +99,23 @@ def getLineEntryFromFrame():
     path = frame.GetPCAddress().GetLineEntry()
     return path
 
+def breakpoints():
+    """ return a breakpoint dict of form = {'filename:line_nr': [id, id, ...]} """
+    target = lldb.debugger.GetSelectedTarget()
+    id_dict = {}
+
+    for bp in target.breakpoint_iter():
+        for bl in bp:
+            loc = bl.GetAddress().GetLineEntry()
+            key = str(loc.GetFileSpec()) + ':' + str(loc.GetLine())
+            if key in id_dict:
+                id_dict[key].append(bp.GetID())
+            else:
+                id_dict[key] = [bp.GetID()]
+
+    return id_dict
+
+
 def GetEvents(listener, broadcaster, num_tries):
     event = lldb.SBEvent()
     print('ETHS: %s'% broadcaster.EventTypeHasListeners(5))
@@ -128,7 +129,6 @@ def GetEvents(listener, broadcaster, num_tries):
         num_tries -= 1
         if num_tries == 0:
             break
-
 
     listener.Clear()
     return
@@ -160,7 +160,7 @@ def getDescription(obj, option = None):
 
     return stream.GetData()
 
-# TODO use logging callback to launch once an active thread is established
+
 class EventListeningThread(threading.Thread):
     def run(self):
         """ main loop to listen for LLDB events """
@@ -169,14 +169,22 @@ class EventListeningThread(threading.Thread):
         done = False
 
         while not done:
-            #vimOutCb('OutCb', 'listening')
             if listener.WaitForEvent(1, event):
                 event_mask = event.GetType()
                 vimOutCb('OutCb', 'event', event_mask)
                 if lldb.SBBreakpoint_EventIsBreakpointEvent(event):
                     bp = lldb.SBBreakpoint_GetBreakpointFromEvent(event)
-                    vimOutCb('OutCb', 'breakpoint updated')
-                    done = True
+                    vimOutCb('OutCb', 'breakpoint', str(bp))
+                    #vimOutCb('OutCb', 'breakpoint update', breakpoints())
+
+                elif lldb.SBTarget_EventIsTargetEvent(event):
+                    vimOutCb('OutCb', 'target', str(event))
+
+                elif lldb.SBProcess_EventIsProcessEvent(event):
+                    vimOutCb('OutCb', 'process', str(event))
+                    if lldb.SBProcess_EventIsStructuredDataEvent(event):
+                        state = lldb.SBProcess_GetStateFromEvent(event)
+                        vimOutCb('OutCb', 'process:data', lldb.SBProcess.StateAsCString(state))
 
 
 
@@ -232,41 +240,16 @@ def log_cb(msg):
 
 
 
-class LLDB():
-    """ Wrapper for an LLDB instance """
-
-    def __init__(self):
-        """ set up a blank debugger instance. let the user decide options, targets,... """
-        lldb.debugger = lldb.SBDebugger.Create()
-        #self.ci = lldb.debugger.GetCommandInterpreter()
+class LLDBThread(threading.Thread):
+    def run(self):
         lldb.debugger.SetPrompt('(vim-lldb)')
         # do not return from function until process stops during step/continue
-        lldb.debugger.SetAsync(False)
 
         # (lldb) log list  - list channels/categories
         lldb.debugger.EnableLog('lldb', ['break', 'target', 'step'])
         #lldb.debugger.EnableLog('lldb', ['default'])
         #lldb.debugger.EnableLog('lldb', ['event'])
-        lldb.debugger.SetLoggingCallback(log_cb)
-
-        handle_events = True
-        spawn_thread = False
-        num_errors = 10
-        quit_requested = True
-        stopped_on_crash = True
-        options = lldb.SBCommandInterpreterRunOptions()
-        options.SetEchoCommands(True)
-        options.SetStopOnError(False)
-        options.SetStopOnCrash(False)
-        options.SetStopOnContinue(True)
-        options.SetPrintResults(True)
-
-        lldb.debugger.RunCommandInterpreter(handle_events, spawn_thread, options, num_errors, quit_requested, stopped_on_crash)
-
-
-class LLDBThread(threading.Thread):
-    def run(self):
-        lldb.debugger.SetPrompt('(vim-lldb)')
+        #lldb.debugger.SetLoggingCallback(log_cb)
         # do not return from function until process stops during step/continue
         lldb.debugger.SetAsync(False)
 
@@ -302,10 +285,6 @@ if __name__ == '__main__':
 
 
 
-
-
-
-
 def __lldb_init_module(debugger, internal_dict):
     """ called when importing this module into the lldb interpreter """
     # for lldb->vim comms use vimOutCb or logging or override HandleCommand globally?
@@ -317,7 +296,7 @@ def __lldb_init_module(debugger, internal_dict):
     debugger.EnableLog('lldb', ['break', 'target', 'step'])
     #lldb.debugger.EnableLog('lldb', ['default'])
 
-    debugger.HandleCommand('command script add -f lldb_commands.bp_dict bp_dict')
+    #debugger.HandleCommand('command script add -f lldb_commands.bp_dict bp_dict')
     debugger.HandleCommand('command script add -f lldb_commands.line_at_frame line_at_frame')
     debugger.HandleCommand('command script add -f lldb_commands.set_log_tty set_log_tty')
     debugger.HandleCommand('command script add -f lldb_commands.get_tty get_tty')
