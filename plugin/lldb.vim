@@ -151,8 +151,7 @@ func! s:StartDebug_term()
 
 
   " start LLDB interpreter in new terminal
-  " the script will launch a debugger instance and then import custom
-  " commands
+  " the script will launch a debugger instance
   let cmd = python_path . ' ' . python_script_dir . '/lldb_commands.py'
   let s:lldb_native_buf = term_start(cmd, {
         \ 'term_name': 'lldb',
@@ -160,7 +159,6 @@ func! s:StartDebug_term()
         \ 'hidden': 0,
         \})
 
-  " TODO custom exit_cb
   call job_setoptions(term_getjob(s:lldb_native_buf), {'exit_cb': function('s:EndTermDebug')})
 
   if s:lldb_native_buf == 0
@@ -178,8 +176,8 @@ func! s:StartDebug_term()
   call s:SendCommand('command script import ' . python_cmds)
 
   " redirect LLDB log output
-  call s:SendCommand('set_log_tty_out ' . pty_out)
-  call s:SendCommand('set_log_tty_in ' . pty_in)
+  call s:SendCommand('set_tty_out ' . pty_out)
+  call s:SendCommand('set_tty_in ' . pty_in)
 
   call s:StartDebug_common()
 endfunc
@@ -408,27 +406,27 @@ endfunc
 " Called when lldb has new output
 " parse response and update Vim instance when necessary
 func! g:Lldbapi_LldbOutCb(bufnum, args)
-  let resp = a:args[0]
-  echomsg 'lldb: ' . resp . ' info: ' a:args[1]
-  call ch_log('lldb> : ' . resp)
+  let cmd = a:args[0]
+  echomsg 'lldb: ' . cmd . ' : ' a:args[1]
+  call ch_log('lldb> : ' . cmd)
 
   " ignore help related
-  if resp =~? 'debugger commands'
+  if cmd =~? 'debugger commands'
     return
   endif
 
-  if resp =~? 'breakpoint'
+  if cmd =~? 'breakpoint'
     echomsg 'bp is:' . a:args[1]
     call s:UI_SyncBreakpoints(a:args[1])
 
-  elseif resp =~? 'target'
+  elseif cmd =~? 'target'
     echomsg 'Got target event'
 
   "
   " Process
   "
-  elseif resp =~? 'process'
-    if resp =~? 'invalid\|exited\|finished'
+  elseif cmd =~? 'process'
+    if cmd =~? 'invalid\|exited\|finished'
       call s:UI_RemoveHighlightLine()
     else
       call s:GetAbsFilePathFromFrame()
@@ -439,7 +437,7 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
   "
   " Stepping
   "
-  elseif resp =~? 'current file'
+  elseif cmd =~? 'current file'
     call s:UI_HighlightLine(a:args[1])
 
   

@@ -1,7 +1,7 @@
 # TODO: check loading init files doesn't break anything, sourcemaps
 # Useful built-ins
 #   Custom breakpoint functions: use to connect callbacks here
-#   SBHostOS: GetLLDBPath, GetLLDBPythonPath
+#   SBHostOS: GetLLDBPath, GetLLDBPythonPath, CreateThread
 
 
 
@@ -45,11 +45,11 @@ def get_tty(debugger, command, result, internal_dict):
     result.write('tty output: %s'% handle)
     result.PutOutput(handle)
 
-def set_log_tty_in(debugger, command, result, internal_dict):
-    """ redirect log output """
+def set_tty_in(debugger, command, result, internal_dict):
+    """ redirect input file """
     args = shlex.split(command)
     global IN_FD
-    IN_FD = __stdout__
+    IN_FD = __stdin__
     if len(args) > 0:
         path = args[0].strip()
         print('path:%s'% path)
@@ -60,8 +60,8 @@ def set_log_tty_in(debugger, command, result, internal_dict):
     result.write('input redirected to fd: %s\n'% IN_FD.name)
     result.PutOutput(handle)
 
-def set_log_tty_out(debugger, command, result, internal_dict):
-    """ redirect log output """
+def set_tty_out(debugger, command, result, internal_dict):
+    """ redirect output file """
     args = shlex.split(command)
     global OUT_FD
     OUT_FD = __stdout__
@@ -77,7 +77,7 @@ def set_log_tty_out(debugger, command, result, internal_dict):
 
 def line_at_frame(debugger, command, result, internal_dict):
     """ return the source file's line # based on a the selected frame """
-    target = lldb.debugger.GetSelectedTarget()
+    target = debugger.GetSelectedTarget()
     if target is not None:
         process = target.GetProcess()
         for thread in process:
@@ -107,9 +107,10 @@ def getLineEntryFromFrame(debugger):
     path = frame.GetPCAddress().GetLineEntry()
     return path
 
-def breakpoints(debugger):
+def breakpoints(event):
     """ return a breakpoint dict of form = {'filename:line_nr': [id, id, ...]} """
-    target = debugger.GetSelectedTarget()
+    target = lldb.SBTarget_GetTargetFromEvent(event)
+    vimOutCb('target', target)
     breakpoints = {}
 
     for bp in target.breakpoint_iter():
@@ -171,26 +172,25 @@ class EventListeningThread(threading.Thread):
                 #vimOutCb( 'event', event_mask)
                 #vimOutCb( 'debugger', self.dbg)
 
+                if lldb.SBProcess_EventIsProcessEvent(event):
+                    process = lldb.SBProcess().GetProcessFromEvent(event)
+                    state = lldb.SBProcess_GetStateFromEvent(event)
+                    vimOutCb( 'process:state', lldb.SBProcess().StateAsCString(state))
+
+                    if event_mask & lldb.SBProcess.eBroadcastBitStateChanged:
+                        vimOutCb( 'process:bbitchanged', lldb.SBProcess().StateAsCString(state))
+
+                    if lldb.SBProcess_EventIsStructuredDataEvent(event):
+                        state = lldb.SBProcess_GetStateFromEvent(event)
+                        vimOutCb( 'process:data', lldb.SBProcess().StateAsCString(state))
+
                 if lldb.SBBreakpoint_EventIsBreakpointEvent(event):
                    # bp = lldb.SBBreakpoint_GetBreakpointFromEvent(event)
-                    bp_dict = breakpoints(self.dbg)
+                    bp_dict = breakpoints(event)
                     vimOutCb( 'breakpoint', bp_dict)
 
                 if lldb.SBTarget_EventIsTargetEvent(event):
                     vimOutCb( 'target', event)
-
-                if lldb.SBProcess_EventIsProcessEvent(event):
-                    process = lldb.SBProcess().GetProcessFromEvent(event)
-                    state = lldb.SBProcess_GetStateFromEvent(event)
-                    vimOutCb( 'process:state', lldb.SBProcess.StateAsCString(state))
-
-                    if event_mask & lldb.SBProcess.eBroadcastBitStateChanged:
-                        vimOutCb( 'process:bbitchanged', lldb.SBProcess.StateAsCString(state))
-
-                    if lldb.SBProcess_EventIsStructuredDataEvent(event):
-                        state = lldb.SBProcess_GetStateFromEvent(event)
-                        vimOutCb( 'process:data', lldb.SBProcess.StateAsCString(state))
-
 
 
 
@@ -253,20 +253,16 @@ class LLDBThread(threading.Thread):
     def run(self):
         self.dbg.SetPrompt('(vim-lldb)')
         # do not return from function until process stops during step/continue
-
-        # (lldb) log list  - list channels/categories
-        self.dbg.EnableLog('lldb', ['break', 'target', 'step'])
-        #self.dbg.EnableLog('lldb', ['default'])
-        #self.dbg.EnableLog('lldb', ['event'])
-        #self.dbg.SetLoggingCallback(log_cb)
         # do not return from function until process stops during step/continue
         self.dbg.SetAsync(False)
 
         handle_events = True
+        # TODO investigate why True causes buggy behavior 
         spawn_thread = False
-        num_errors = 10
+        num_errors = 1
         quit_requested = True
         stopped_on_crash = True
+
         options = lldb.SBCommandInterpreterRunOptions()
         options.SetEchoCommands(True)
         options.SetStopOnError(False)
@@ -274,6 +270,7 @@ class LLDBThread(threading.Thread):
         options.SetStopOnContinue(True)
         options.SetPrintResults(True)
         self.dbg.RunCommandInterpreter(handle_events, spawn_thread, options, num_errors, quit_requested, stopped_on_crash)
+        self.dbg.SetAsync(True)
 
 
 # @TODO kill events thread when LLDB stops
@@ -284,7 +281,7 @@ if __name__ == '__main__':
                 ('LldbErrFatalCb', 'Failed to import vim-lldb. Try setting g:lldb_python_interpreter_path=\'path/to/python\' in .vimrc. See README for help.',))
         sys.exit()
     else:
-        lldb.debugger = lldb.SBDebugger.Create()
+        lldb.debugger = lldb.SBDebugger.Create(True)
         t_lldb = LLDBThread(lldb.debugger)
         t_lldb.start()
 
@@ -294,24 +291,20 @@ if __name__ == '__main__':
         t_lldb.join()
         t_events.join()
 
+        lldb.debugger.Terminate()
 
 
 
 
 def __lldb_init_module(debugger, internal_dict):
     """ called when importing this module into the lldb interpreter """
-    # for lldb->vim comms use vimOutCb or logging or override HandleCommand globally?
-    # apropros log
-    debugger.SetLoggingCallback(log_cb)
-    #debugger.SetUseExternalEditor(True)
-
     # (lldb) log list  - list channels/categories
+    debugger.SetLoggingCallback(log_cb)
     debugger.EnableLog('lldb', ['break', 'target', 'step'])
 
-    #debugger.HandleCommand('command script add -f lldb_commands.bp_dict bp_dict')
     debugger.HandleCommand('command script add -f lldb_commands.line_at_frame line_at_frame')
-    debugger.HandleCommand('command script add -f lldb_commands.set_log_tty_in set_log_tty_in')
-    debugger.HandleCommand('command script add -f lldb_commands.set_log_tty_out set_log_tty_out')
+    debugger.HandleCommand('command script add -f lldb_commands.set_tty_in set_tty_in')
+    debugger.HandleCommand('command script add -f lldb_commands.set_tty_out set_tty_out')
     debugger.HandleCommand('command script add -f lldb_commands.get_tty get_tty')
 
     #debugger.SetOutputFileHandle(__stdout__, True)
