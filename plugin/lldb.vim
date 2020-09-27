@@ -139,6 +139,7 @@ func! s:StartDebug_term()
           \ 'vertical': 1,
           \ 'hidden': 0,
           \})
+
     let pty_out = job_info(term_getjob(s:lldb_comms_buf))['tty_out']
     let pty_in = job_info(term_getjob(s:lldb_comms_buf))['tty_in']
 
@@ -159,7 +160,9 @@ func! s:StartDebug_term()
         \ 'hidden': 0,
         \})
 
-  call job_setoptions(term_getjob(s:lldb_native_buf), {'exit_cb': function('s:EndTermDebug')})
+  let lldb_options = {}
+  let lldb_options['exit_cb']= function('s:EndTermDebug')
+  call job_setoptions(term_getjob(s:lldb_native_buf), lldb_options)
 
   if s:lldb_native_buf == 0
     echohl WarningMsg python_path . ' failed to open LLDB. Try `:LInfo` for plugin info and see README for details.' | echohl None
@@ -175,9 +178,9 @@ func! s:StartDebug_term()
   let python_cmds = python_script_dir . '/lldb_commands.py'
   call s:SendCommand('command script import ' . python_cmds)
 
-  " redirect LLDB log output
-  call s:SendCommand('set_tty_out ' . pty_out)
-  call s:SendCommand('set_tty_in ' . pty_in)
+  " redirect LLDB log output to stdin of comms buff
+  call s:SendCommand('set_tty_out ' . pty_in)
+  call s:SendCommand('set_tty_in ' . pty_out)
 
   call s:StartDebug_common()
 endfunc
@@ -357,9 +360,7 @@ func s:SplitBreakpointIntoLocationList(str)
   return file_str_list
 endfunc
 
-func s:GetAbsFilePathFromFrame()
-  call s:SendCommand('frame_path -internal')
-endfunc
+
 
 func s:UI_RemoveHighlightLine()
   call sign_unplace('process')
@@ -416,11 +417,10 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
   endif
 
   if cmd =~? 'breakpoint'
-    echomsg 'bp is:' . a:args[1]
     call s:UI_SyncBreakpoints(a:args[1])
 
-  elseif cmd =~? 'target'
-    echomsg 'Got target event'
+  "elseif cmd =~? 'target'
+    "echomsg 'Got target event'
 
   "
   " Process
@@ -429,7 +429,7 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
     if cmd =~? 'invalid\|exited\|finished'
       call s:UI_RemoveHighlightLine()
     else
-      call s:GetAbsFilePathFromFrame()
+      call s:UI_HighlightLine(a:args[1])
     endif
 
 

@@ -1,4 +1,6 @@
 # TODO: check loading init files doesn't break anything, sourcemaps
+# ref:
+#  TestEvents.py
 # Useful built-ins
 #   Custom breakpoint functions: use to connect callbacks here
 #   SBHostOS: GetLLDBPath, GetLLDBPythonPath, CreateThread
@@ -20,7 +22,8 @@ try:
 except ImportError:
     lldbImported = False
 
-OUT_FD = None
+OUT_FD = __stdout__
+IN_FD = __stdin__
 
 def JSON(obj):
     " create JSON from object and escape all quotes """
@@ -34,15 +37,15 @@ def vimOutCb(res, data = ''):
 def vimErrCb(err):
     print('\033]51;["call","Lldbapi_LldbErrCb",["{}"]]\007'.format(JSON(err)))
 
-
-
 #
 # Define custom commands for LLDB
 #
 
 def get_tty(debugger, command, result, internal_dict):
     handle = debugger.GetOutputFileHandle()
-    result.write('tty output: %s'% handle)
+    result.write('tty output: %s\n'% handle)
+    handle = debugger.GetInputFileHandle()
+    result.write('tty input: %s\n'% handle)
     result.PutOutput(handle)
 
 def set_tty_in(debugger, command, result, internal_dict):
@@ -52,13 +55,12 @@ def set_tty_in(debugger, command, result, internal_dict):
     IN_FD = __stdin__
     if len(args) > 0:
         path = args[0].strip()
-        print('path:%s'% path)
         IN_FD = open(path, "r")
 
     debugger.SetInputFileHandle(IN_FD, True)
     handle = debugger.GetInputFileHandle()
     result.write('input redirected to fd: %s\n'% IN_FD.name)
-    result.PutOutput(handle)
+    result.PutOutput(OUT_FD)
 
 def set_tty_out(debugger, command, result, internal_dict):
     """ redirect output file """
@@ -67,10 +69,10 @@ def set_tty_out(debugger, command, result, internal_dict):
     OUT_FD = __stdout__
     if len(args) > 0:
         path = args[0].strip()
-        print('path:%s'% path)
         OUT_FD = open(path, "w")
 
     debugger.SetOutputFileHandle(OUT_FD, True)
+    debugger.SetErrorFileHandle(OUT_FD, True)
     handle = debugger.GetOutputFileHandle()
     result.write('output redirected to fd: %s\n'% OUT_FD.name)
     result.PutOutput(handle)
@@ -87,8 +89,6 @@ def line_at_frame(debugger, command, result, internal_dict):
                 vimOutCb('current file', path)
     else:
         vimErrCb("Unable to get a line entry for frame")
-
-
 
 #
 # custom helpers
@@ -110,7 +110,7 @@ def getLineEntryFromFrame(debugger):
 def breakpoints(event):
     """ return a breakpoint dict of form = {'filename:line_nr': [id, id, ...]} """
     target = lldb.SBTarget_GetTargetFromEvent(event)
-    vimOutCb('target', target)
+    #vimOutCb('bptarget', target)
     breakpoints = {}
 
     for bp in target.breakpoint_iter():
@@ -124,8 +124,6 @@ def breakpoints(event):
                 breakpoints[key] = [bp.GetID()]
 
     return breakpoints
-
-
 
 #
 # lldb utils
@@ -167,22 +165,32 @@ class EventListeningThread(threading.Thread):
 
         while not done:
             if listener.WaitForEvent(1, event):
-
                 event_mask = event.GetType()
-                #vimOutCb( 'event', event_mask)
+                self.target = self.dbg.GetSelectedTarget()
+
+                if self.target:
+                    vimOutCb('target-set', self.target)
+                    # valid target set so process events async
+                    self.dbg.SetAsync(True)
+
                 #vimOutCb( 'debugger', self.dbg)
+                if lldb.SBTarget_EventIsTargetEvent(event):
+                    vimOutCb('basic target', 'none')
+                    self.target = lldb.SBTarget_GetTargetFromEvent(event)
+                    vimOutCb( 'target', self.dbg.GetSelectedTarget())
 
                 if lldb.SBProcess_EventIsProcessEvent(event):
                     process = lldb.SBProcess().GetProcessFromEvent(event)
                     state = lldb.SBProcess_GetStateFromEvent(event)
-                    vimOutCb( 'process:state', lldb.SBProcess().StateAsCString(state))
+                    vimOutCb( 'process:state', self.dbg.StateAsCString(state))
 
                     if event_mask & lldb.SBProcess.eBroadcastBitStateChanged:
-                        vimOutCb( 'process:bbitchanged', lldb.SBProcess().StateAsCString(state))
+                        state_string = self.dbg.StateAsCString(state)
+                        vimOutCb( 'process:bbitchanged', self.dbg.StateAsCString(state))
 
                     if lldb.SBProcess_EventIsStructuredDataEvent(event):
                         state = lldb.SBProcess_GetStateFromEvent(event)
-                        vimOutCb( 'process:data', lldb.SBProcess().StateAsCString(state))
+                        vimOutCb( 'process:data', self.dbg.StateAsCString(state))
 
                 if lldb.SBBreakpoint_EventIsBreakpointEvent(event):
                    # bp = lldb.SBBreakpoint_GetBreakpointFromEvent(event)
@@ -199,7 +207,6 @@ class EventListeningThread(threading.Thread):
 """ Send logs off to Vim for parsing """
 def log_cb(msg):
     # output logs for debugging only
-    #print('OUTFD', OUT_FD)
     if OUT_FD:
         OUT_FD.write(msg)
         #vimOutCb('ParseLogs', 'lldb-log', msg)
@@ -212,7 +219,6 @@ def log_cb(msg):
     if not header:
         cmd = compile(r'(?<=lldb)\s*(\w*\s*\w*)')
         header = search(cmd, msg)
-        #print('cmd: ', header.group(0))
         if header.group(0).strip() == 'Added location':
             lldb.debugger.HandleCommand('bp_dict')
         return
@@ -267,10 +273,9 @@ class LLDBThread(threading.Thread):
         options.SetEchoCommands(True)
         options.SetStopOnError(False)
         options.SetStopOnCrash(False)
-        options.SetStopOnContinue(True)
+        options.SetStopOnContinue(False)
         options.SetPrintResults(True)
         self.dbg.RunCommandInterpreter(handle_events, spawn_thread, options, num_errors, quit_requested, stopped_on_crash)
-        self.dbg.SetAsync(True)
 
 
 # @TODO kill events thread when LLDB stops
@@ -282,12 +287,16 @@ if __name__ == '__main__':
         sys.exit()
     else:
         lldb.debugger = lldb.SBDebugger.Create(True)
+
         t_lldb = LLDBThread(lldb.debugger)
-        t_lldb.start()
+        #lldb.SBHostOS_ThreadCreated('vim-lldb-ci')
 
         t_events = EventListeningThread(lldb.debugger)
-        #t_events.setDaemon(True)
+        #lldb.SBHostOS_ThreadCreated('vim-lldb-events')
+
+        t_lldb.start()
         t_events.start()
+
         t_lldb.join()
         t_events.join()
 
@@ -299,8 +308,8 @@ if __name__ == '__main__':
 def __lldb_init_module(debugger, internal_dict):
     """ called when importing this module into the lldb interpreter """
     # (lldb) log list  - list channels/categories
-    debugger.SetLoggingCallback(log_cb)
-    debugger.EnableLog('lldb', ['break', 'target', 'step'])
+    #debugger.SetLoggingCallback(log_cb)
+    #debugger.EnableLog('lldb', ['break', 'target', 'step'])
 
     debugger.HandleCommand('command script add -f lldb_commands.line_at_frame line_at_frame')
     debugger.HandleCommand('command script add -f lldb_commands.set_tty_in set_tty_in')
