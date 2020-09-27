@@ -453,7 +453,7 @@ func! g:Lldbapi_LldbErrCb(bufnum, args)
 endfunc
 
 func! g:Lldbapi_LldbErrFatalCb(bufnum, args)
-  echohl WarningMsg | echomsg 'lldb: ' . a:args[0] | echohl None
+  echohl ErrorMsg | echomsg 'lldb: ' . a:args[0] | echohl None
   call ch_log('lldb> : ' . a:args[0])
   unlet! s:lldb_term_running
   call s:DeleteCommands()

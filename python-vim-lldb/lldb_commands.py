@@ -7,13 +7,20 @@
 
 
 
-import lldb
+import lldb_path
 import shlex
 import optparse
 import json
 from sys import __stdout__, __stdin__
 from re import compile, VERBOSE, search, sub
 import threading
+
+try:
+    lldb_path.update_sys_path()
+    import lldb
+    lldbImported = True
+except ImportError:
+    lldbImported = False
 
 OUT_FD = None
 
@@ -275,15 +282,20 @@ class LLDBThread(threading.Thread):
 # @TODO kill events thread when LLDB stops
 if __name__ == '__main__':
 
-    lldb.debugger = lldb.SBDebugger.Create()
-    t_lldb = LLDBThread(lldb.debugger)
-    t_lldb.start()
+    if not lldbImported:
+        print('\033]51;["call","Lldbapi_%s", ["%s"]]\007' %
+                ('LldbErrFatalCb', 'Failed to import vim-lldb. Try setting g:lldb_python_interpreter_path=\'path/to/python\' in .vimrc. See README for help.',))
+        sys.exit()
+    else:
+        lldb.debugger = lldb.SBDebugger.Create()
+        t_lldb = LLDBThread(lldb.debugger)
+        t_lldb.start()
 
-    t_events = EventListeningThread(lldb.debugger)
-    #t_events.setDaemon(True)
-    t_events.start()
-    t_lldb.join()
-    t_events.join()
+        t_events = EventListeningThread(lldb.debugger)
+        #t_events.setDaemon(True)
+        t_events.start()
+        t_lldb.join()
+        t_events.join()
 
 
 
