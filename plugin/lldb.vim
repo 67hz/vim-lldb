@@ -149,8 +149,10 @@ func! s:StartDebug_term()
   set modified
 
 
+  " start LLDB interpreter in new terminal
+  " the script will launch a debugger instance and then import custom
+  " commands
   let cmd = python_path . ' ' . python_script_dir . '/lldb_commands.py'
-  echomsg 'cmd: ' . cmd
   let s:lldb_native_buf = term_start(cmd, {
         \ 'term_name': 'lldb',
         \ 'vertical': 1,
@@ -404,6 +406,7 @@ endfunc
 " parse response and update Vim instance when necessary
 func! g:Lldbapi_LldbOutCb(bufnum, args)
   let resp = a:args[0]
+  echomsg 'lldb: ' . resp
   call ch_log('lldb> : ' . resp)
 
   " ignore help related

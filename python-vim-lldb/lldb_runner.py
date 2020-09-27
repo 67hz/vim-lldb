@@ -1,17 +1,17 @@
-from __future__ import print_function
+#!/usr/bin/python
 
-from os import system, name
+# TODO: check loading init files doesn't break anything, sourcemaps
+# Useful built-ins:
+#   SBHostOS: GetLLDBPath, GetLLDBPythonPath
+
+import lldb
+import shlex
+import optparse
+from sys import __stdout__
 from re import compile, VERBOSE, search, sub
-import sys
-import lldb_path
+import threading
 
-try:
-    lldb_path.update_sys_path()
-    import lldb
-    lldbImported = True
-except ImportError:
-    lldbImported = False
-
+OUT_FD = None
 
 # 7/8-bit C1 ANSI sequences
 ansi_escape = compile(
@@ -21,20 +21,6 @@ ansi_escape = compile(
 def escape_ansi(line):
     return ansi_escape.sub(b'', bytes(line))
 
-def clear():
-    # windows
-    if name == 'nt':
-        _ = system('cls')
-    else:
-        _ = system('clear')
-
-def removeLastNLines(i):
-    CURSOR_UP = '\x1b[1A'
-    ERASE_LINE = '\x1b[2K'
-    while i > 0:
-        print(CURSOR_UP + ERASE_LINE)
-        i -= 1
-
 def escapeQuotes(res):
     res = escape_ansi(res.encode("utf-8", "replace"))
     res = str(res.decode("utf-8"))
@@ -42,265 +28,226 @@ def escapeQuotes(res):
     res = res.replace("'", '\\\"')
     return res
 
-def parseArgs(data):
-    args = data.split(' ')
-    return args
-
-""" Escape sequence to trap into Vim's cb channel.
-    See :help term_sendkeys for job -> vim communication """
-def vimOutCb(res, data = ''):
-    print('\033]51;["call","Lldbapi_LldbOutCb", ["{}", "{}"]]\007'.format(escapeQuotes(res), data))
+def vimOutCb(method, res, data = ''):
+    """ Escape sequence to trap into Vim's cb channel.
+        See :help term_sendkeys for job -> vim communication """
+    print('\033]51;["call","Lldbapi_Lldb{}", ["{}", "{}"]]\007'.format(method, escapeQuotes(res), data))
 
 def vimErrCb(err):
     print('\033]51;["call","Lldbapi_LldbErrCb",["{}"]]\007'.format(escapeQuotes(err)))
 
+#
+# custom query helpers
+#
 
+def getSelectedFrame():
+    frame = None
+    for thread in lldb.debugger.GetSelectedTarget().GetProcess():
+        frame = thread.GetSelectedFrame()
 
-""" Manage an LLDB instance"""
-class LLDB(object):
-    def __init__(self):
-        self.dbg = None
-        self.target = None
-        self.process = None
-        self.ci = None
-        self.isActive = False
+    return frame
 
-    def start(self):
-        self.dbg = lldb.SBDebugger.Create()
-        # do not return from function until process stops during step/continue
-        self.dbg.SetAsync(False)
-        self.ci = self.dbg.GetCommandInterpreter()
+def getLineEntryFromFrame():
+    """ return full path from frame """
+    frame = getSelectedFrame()
+    path = frame.GetPCAddress().GetLineEntry()
+    return path
 
-    def setTarget(self):
-        self.target = self.dbg.GetSelectedTarget()
-
-    def setProcess(self):
-        if self.target is not None:
-            self.process = self.target.GetProcess()
-
-    def processState(self):
-        if self.process is None:
-            self.process = self.setProcess()
-
-        if self.process is not None:
-            state = self.process.GetState() 
-            return self.dbg.StateAsCString(state)
-        else:
-            return None
-
-    def getPid(self):
-        if self.process is not None and self.process.IsValid():
-            return self.process.GetProcessID()
-        else:
-            return None
-
-    def terminate(self):
-        self.dbg.Terminate()
-        self.dbg = None
-
-
-    def syncSession(self, res):
-        # attempt to set target if no target (valid) exists or
-        # an exec is explicitly set
-        if self.target is None or self.getPid() is None:
-            self.setTarget()
-            self.setProcess()
-
-    def getDescription(self, obj, option = None):
-        if obj is None:
-            return None
-
-        desc = None
-        stream = lldb.SBStream()
-        get_desc_method = getattr(obj, 'GetDescription')
-
-        tuple = (lldb.SBTarget, lldb.SBBreakpointLocation, lldb.SBWatchpoint)
-        if isinstance(obj, tuple):
-            if option is None:
-                option = lldb.eDescriptionLevelVerbose
-
-        if option is None:
-            success = get_desc_method(stream)
-        else:
-            success = get_desc_method(stream, option)
-
-        if not success:
-            return None
-
-        return stream.GetData()
-
-
-    def getCommandResult(self, data, add_to_history = False, out_handle = None):
-        res = lldb.SBCommandReturnObject()
-        cmd = data.replace('\n', ' ').replace('\r', '')
-
-        if out_handle is not None:
-            # redirect stdout to *FILE
-            f = open(out_handle, "w")
-        else:
-            # else default to stdout for output
-            f = sys.__stdout__
-
-        self.dbg.SetOutputFileHandle(f, True)
-        handle = self.dbg.GetOutputFileHandle()
-        handle_cmd = self.ci.HandleCommand(cmd, res, add_to_history)
-
-        # keep target/process up to date
-        self.syncSession(res)
-
-<<<<<<< HEAD
-        #resolve_cmd = self.ci.ResolveCommand(cmd, res)
-        #print('handle command: %s'% handle_cmd)
-        #print('resolvecommand: %s'% resolve_cmd)
-        #print('echo cmds: %s'% lldb.SBCommandInterpreterRunOptions().GetEchoCommands())
-
-        # write to redirected file
-
-
-=======
-        # TODO send separately for consumption by client UIs
->>>>>>> feature/native-lldb
-        if self.processState() is not None:
-            print('process: %s'% self.getDescription(self.target.GetProcess()))
-            print('thread: %s'% self.getDescription(self.process.GetSelectedThread()))
-            print('frame: %s'% self.getDescription(self.getSelectedFrame()))
-
-        print('IsValid: ', res.IsValid())
-        print('HasResult: ', res.HasResult())
-        #print('GetErrorSize: ', res.GetErrorSize())
-        #print('GetStatus: ', res.GetStatus())
-        # status: 5 - exited, 2 when stopped with 2 breakpoints
-
-        #if res.HasResult():
-            # breakpoint, stepping, launched process, r
-            # no need for display. vim will handle
-            # add frame info to 
-            #print('result: ', res.GetOutput())
-            #res.PutOutput(handle)
-
-        #else:
-            # no result - help, error, exec set, stepping?
-            # except when check output for prompt
-            #print('no result: ', res.GetOutput())
-            #res.PutOutput(handle)
-
-        res.PutOutput(handle)
-
-
-        # Vim cb gets errors in prompt
-
-        return res
-
-    def getSelectedFrame(self):
-        frame = None
-        if self.processState() is not None:
-            for thread in self.process:
-                frame = thread.GetSelectedFrame()
-
-        return frame
-
-    def getLineEntryFromFrame(self):
-        """ return full path from frame """
-        frame = self.getSelectedFrame()
-        path = frame.GetPCAddress().GetLineEntry()
-        return path
-
-    def getBreakpointAtFileLine(self, data):
-        args = parseArgs(data)
-        filename = args[1]
-        line_nr = args[2]
-        self.getAllBreakpoints()
-
-    def getBreakpointDict(self):
-        """ REVIEW is it necessary to store sub-ids of breakpoint, e.g. 1.2
-          id_dict = {'filename:line_nr': [id, id, ...]} """
-        id_dict = {}
-
-        for bp in self.target.breakpoint_iter():
-            for bl in bp:
-                loc = bl.GetAddress().GetLineEntry()
-                key = str(loc.GetFileSpec()) + ':' + str(loc.GetLine())
-                if key in id_dict:
-                    id_dict[key].append(bp.GetID())
-                else:
-                    id_dict[key] = [bp.GetID()]
-
-        return id_dict
-
-
-
-"""
-@TODO
-* handle keyboard interrupt
-* add tab-completion
-* respawn on error or user request
-* define arg flags (e.g., '-internal', ...)
-
-Start LLDB interpreter in IO loop to take commands from input prompt
-and pass to debugger instance
-"""
-def startIOLoop(outcb, errcb):
-    dbg = LLDB()
-    dbg.start()
-    flag_internal = '-internal'
-    flag_tty = '-tty'
-    tty_out = None
+def GetEvents(listener, broadcaster, num_tries):
+    event = lldb.SBEvent()
+    print('ETHS: %s'% broadcaster.EventTypeHasListeners(5))
 
     while True:
-        data = input("(lldb) ")
+        if listener.WaitForEventForBroadcasterWithType(5, broadcaster, lldb.SBProcess.eBroadcastBitStateChanged):
+            ev_mask = event.GetType()
+            print('got event')
+            print('event type: %s'% ev_mask)
+            break
+        num_tries -= 1
+        if num_tries == 0:
+            break
 
 
-        if len(data) < 1:
-            continue
-
-        """ -tty out_handle sets output of CI """
-        if flag_tty in data:
-            p = compile(r'(?<=-tty)\s*([\w\\\/\.\_\-]*)')
-            out = search(p, data)
-            tty_out = out.group().strip() if len(out.group()) else None
-            # remove -tty flag and file path from data before further processing
-            p = compile(r'-tty\s*[\w\\\/\.\_\-]*')
-            data = p.sub('', data)
-
-        """ -internal commands skip LLDB's CI """
-        if flag_internal in data:
-            removeLastNLines(1)
-
-            data.replace(flag_internal, '')
-            if 'bp_sync' in str(data):
-                outcb('breakpoint updated', dbg.getBreakpointDict())
-            elif 'frame_path' in str(data):
-                outcb('current file', dbg.getLineEntryFromFrame())
-            elif 'clear' in str(data):
-                clear()
-            elif 'wipe' in str(data):
-                continue
+    listener.Clear()
+    return
 
 
-        else:
-            res = dbg.getCommandResult(data, add_to_history = True, out_handle = tty_out)
+#
+# lldb utils
+#
+def getDescription(obj, option = None):
+    if obj is None:
+        return None
 
-            if res.Succeeded():
-                output = res.GetOutput()
-                outcb(output)
-            else:
-                output = res.GetError()
-                errcb(output)
+    desc = None
+    stream = lldb.SBStream()
+    get_desc_method = getattr(obj, 'GetDescription')
 
-    dbg.Terminate()
+    tuple = (lldb.SBTarget, lldb.SBBreakpointLocation, lldb.SBWatchpoint)
+    if isinstance(obj, tuple):
+        if option is None:
+            option = lldb.eDescriptionLevelVerbose
+
+    if option is None:
+        success = get_desc_method(stream)
+    else:
+        success = get_desc_method(stream, option)
+
+    if not success:
+        return None
+
+    return stream.GetData()
+
+# use logging callback to launch once an active thread is established
+class EventListeningThread(threading.Thread):
+    def run(self):
+        """ main loop to listen for LLDB events """
+        event = lldb.SBEvent()
+        Event
+        listener = lldb.debugger.GetListener()
+        num_tries = 2
+
+        #GetEvents(listener, num_tries)
+        return
+
+
+def listen():
+    listener = lldb.debugger.GetListener()
+    process = lldb.debugger.GetSelectedTarget().GetProcess()
+    print('Target: %s'% lldb.debugger.GetSelectedTarget())
+
+    if process is not None:
+        print('process: %s'% lldb.debugger.StateAsCString(process.GetState()))
+        broadcaster = process.GetBroadcaster()
+        event = lldb.SBEvent()
+        listener = lldb.SBListener('my listener')
+        rc = broadcaster.AddListener(listener, lldb.SBProcess.eBroadcastBitStateChanged)
+
+        if rc == 1:
+            print('rc: %s'% rc)
+            GetEvents(listener, broadcaster, 4)
+        
 
 
 
-<<<<<<< HEAD
-=======
+""" Send logs off to Vim for parsing """
+def log_cb(msg):
+    # output logs for debugging only
+    if OUT_FD:
+        OUT_FD.write(msg)
+        #vimOutCb('ParseLogs', 'lldb-log', msg)
+
+    log_id = compile(r'\d*?\.\d*\s?')
+    heading = compile('(\w*)\:\:(\w*)')
+    header = search(heading, msg)
+    
+    # Below is a temp placeholder. This should be streamlined into a few basic flows based on select logging
+    if not header:
+        cmd = compile(r'(?<=lldb)\s*(\w*\s*\w*)')
+        header = search(cmd, msg)
+        #print('cmd: ', header.group(0))
+        if header.group(0).strip() == 'Added location':
+            lldb.debugger.HandleCommand('bp_dict')
+        return
+
+    #print('parent: ', header.group(1))
+    #print('sub: ', header.group(2))
+
+    if header.group(1) == 'Target':
+        if header.group(2) == 'Target':
+            #print('New Target')
+            return
+        if header.group(2) == 'AddBreakpoint':
+            # bps not ready yet
+            return
+        if header.group(2) == 'DisableBreakpointByID':
+            # bps not ready yet
+            lldb.debugger.HandleCommand('bp_dict')
+            return
+
+    elif header.group(1) == 'ThreadList':
+        if header.group(2) == 'ShouldStop':
+            frame = getLineEntryFromFrame()
+            print('le: ', frame)
+            vimOutCb('OutCb','current file', frame)
+    elif header.group(1) == 'Process':
+        if header.group(2) == 'PerformAction':
+            frame = getLineEntryFromFrame()
+            vimOutCb('OutCb','current file', frame)
 
 
->>>>>>> feature/native-lldb
-# start LLDB interpreter if LLDB was imported
-if not lldbImported:
-    print('\033]51;["call","Lldbapi_%s", ["%s"]]\007' %
-            ('LldbErrFatalCb', 'Failed to import vim-lldb. Try setting g:lldb_python_interpreter_path=\'path/to/python\' in .vimrc. See README for help.',))
-    sys.exit()
-else:
-    startIOLoop(vimOutCb, vimErrCb)
+    eventListener()
+
+
+
+class LLDB():
+    """ Wrapper for an LLDB instance """
+
+    def __init__(self):
+        """ set up a blank debugger instance. let the user decide options, targets,... """
+        lldb.debugger = lldb.SBDebugger.Create()
+        #self.ci = lldb.debugger.GetCommandInterpreter()
+        lldb.debugger.SetPrompt('(vim-lldb)')
+        # do not return from function until process stops during step/continue
+        lldb.debugger.SetAsync(False)
+
+        # (lldb) log list  - list channels/categories
+        lldb.debugger.EnableLog('lldb', ['break', 'target', 'step'])
+        #lldb.debugger.EnableLog('lldb', ['default'])
+        #lldb.debugger.EnableLog('lldb', ['event'])
+        lldb.debugger.SetLoggingCallback(log_cb)
+
+        handle_events = True
+        spawn_thread = False
+        num_errors = 10
+        quit_requested = True
+        stopped_on_crash = True
+        options = lldb.SBCommandInterpreterRunOptions()
+        options.SetEchoCommands(True)
+        options.SetStopOnError(False)
+        options.SetStopOnCrash(False)
+        options.SetStopOnContinue(True)
+        options.SetPrintResults(True)
+
+
+        result = lldb.debugger.RunCommandInterpreter(handle_events, spawn_thread, options, num_errors, quit_requested, stopped_on_crash)
+
+        #lldb.debugger.HandleCommand('command script add -f lldb_commands.set_log_tty set_log_tty')
+        lldb.debugger.HandleCommand('command script add -f lldb_commands.get_tty get_tty')
+        print('result of running %s'% result)
+
+
+
+
+if __name__ == '__main__':
+    lldb.debugger = lldb.SBDebugger.Create()
+    #self.ci = lldb.debugger.GetCommandInterpreter()
+    lldb.debugger.SetPrompt('(vim-lldb)')
+    # do not return from function until process stops during step/continue
+    lldb.debugger.SetAsync(False)
+
+    # (lldb) log list  - list channels/categories
+    lldb.debugger.EnableLog('lldb', ['break', 'target', 'step'])
+    #lldb.debugger.EnableLog('lldb', ['default'])
+    #lldb.debugger.EnableLog('lldb', ['event'])
+    lldb.debugger.SetLoggingCallback(log_cb)
+
+    handle_events = True
+    spawn_thread = False
+    num_errors = 10
+    quit_requested = True
+    stopped_on_crash = True
+    options = lldb.SBCommandInterpreterRunOptions()
+    options.SetEchoCommands(True)
+    options.SetStopOnError(False)
+    options.SetStopOnCrash(False)
+    options.SetStopOnContinue(True)
+    options.SetPrintResults(True)
+
+
+    lldb.debugger.RunCommandInterpreter(handle_events, spawn_thread, options, num_errors, quit_requested, stopped_on_crash)
+
+
+
+
 
