@@ -407,7 +407,7 @@ endfunc
 " parse response and update Vim instance when necessary
 func! g:Lldbapi_LldbOutCb(bufnum, args)
   let resp = a:args[0]
-  echomsg 'lldb: ' . resp
+  echomsg 'lldb: ' . resp . ' info: ' a:args[1]
   call ch_log('lldb> : ' . resp)
 
   " ignore help related
@@ -417,7 +417,7 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
 
   if resp =~? 'breakpoint'
     echomsg 'bp is:' . a:args[1]
-    call s:UI_SyncBreakpoints(a:args[1])
+    "call s:UI_SyncBreakpoints(a:args[1])
 
   "
   " Process
