@@ -140,6 +140,7 @@ func! s:StartDebug_term()
           \ 'hidden': 0,
           \})
     let pty_out = job_info(term_getjob(s:lldb_comms_buf))['tty_out']
+    let pty_in = job_info(term_getjob(s:lldb_comms_buf))['tty_in']
 
     if g:lldb_orientation == 1
       exe (&columns / g:lldb_width - 1) . "wincmd | "
@@ -177,7 +178,8 @@ func! s:StartDebug_term()
   call s:SendCommand('command script import ' . python_cmds)
 
   " redirect LLDB log output
-  call s:SendCommand('set_log_tty ' . pty_out)
+  call s:SendCommand('set_log_tty_out ' . pty_out)
+  call s:SendCommand('set_log_tty_in ' . pty_in)
 
   call s:StartDebug_common()
 endfunc
@@ -419,6 +421,9 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
     echomsg 'bp is:' . a:args[1]
     call s:UI_SyncBreakpoints(a:args[1])
 
+  elseif resp =~? 'target'
+    echomsg 'Got target event'
+
   "
   " Process
   "
@@ -429,8 +434,7 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
       call s:GetAbsFilePathFromFrame()
     endif
 
-  elseif resp =~? 'target'
-    echomsg 'Got target event'
+
 
   "
   " Stepping

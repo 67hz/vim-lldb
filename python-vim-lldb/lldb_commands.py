@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 # TODO: check loading init files doesn't break anything, sourcemaps
 # Useful built-ins
 #   Custom breakpoint functions: use to connect callbacks here
@@ -24,32 +22,17 @@ except ImportError:
 
 OUT_FD = None
 
-# 7/8-bit C1 ANSI sequences
-ansi_escape = compile(
-    br'(?:\x1B[@-Z\\-_]|[\x80-\x9A\x9C-\x9F]|(?:\x1B\[|\x9B)[0-?]*[ -/]*[@-~])'
-)
-
-def escape_ansi(line):
-    return ansi_escape.sub(b'', bytes(line))
-
-def escapeQuotes(res):
-    res = escape_ansi(res.encode("utf-8", "replace"))
-    res = str(res.decode("utf-8"))
-    res = res.replace('"', '\\\"')
-    res = res.replace("'", '\\\"')
-    return res
-
 def JSON(obj):
     " create JSON from object and escape all quotes """
     return json.dumps(str(obj), ensure_ascii = True)
 
-def vimOutCb(method, res, data = ''):
+def vimOutCb(res, data = ''):
     """ Escape sequence to trap into Vim's cb channel.
         See :help term_sendkeys for job -> vim communication """
-    print('\033]51;["call","Lldbapi_Lldb{}", [{}, {}]]\007'.format(method, JSON(res), JSON(data)))
+    print('\033]51;["call","Lldbapi_LldbOutCb", [{}, {}]]\007'.format(JSON(res), JSON(data)))
 
 def vimErrCb(err):
-    print('\033]51;["call","Lldbapi_LldbErrCb",["{}"]]\007'.format(escapeQuotes(err)))
+    print('\033]51;["call","Lldbapi_LldbErrCb",["{}"]]\007'.format(JSON(err)))
 
 
 
@@ -62,7 +45,22 @@ def get_tty(debugger, command, result, internal_dict):
     result.write('tty output: %s'% handle)
     result.PutOutput(handle)
 
-def set_log_tty(debugger, command, result, internal_dict):
+def set_log_tty_in(debugger, command, result, internal_dict):
+    """ redirect log output """
+    args = shlex.split(command)
+    global IN_FD
+    IN_FD = __stdout__
+    if len(args) > 0:
+        path = args[0].strip()
+        print('path:%s'% path)
+        IN_FD = open(path, "r")
+
+    debugger.SetInputFileHandle(IN_FD, True)
+    handle = debugger.GetInputFileHandle()
+    result.write('input redirected to fd: %s\n'% IN_FD.name)
+    result.PutOutput(handle)
+
+def set_log_tty_out(debugger, command, result, internal_dict):
     """ redirect log output """
     args = shlex.split(command)
     global OUT_FD
@@ -74,7 +72,7 @@ def set_log_tty(debugger, command, result, internal_dict):
 
     debugger.SetOutputFileHandle(OUT_FD, True)
     handle = debugger.GetOutputFileHandle()
-    result.write('logging to fd: %s\n'% OUT_FD.name)
+    result.write('output redirected to fd: %s\n'% OUT_FD.name)
     result.PutOutput(handle)
 
 def line_at_frame(debugger, command, result, internal_dict):
@@ -86,7 +84,7 @@ def line_at_frame(debugger, command, result, internal_dict):
             frame = thread.GetSelectedFrame()
             if frame is not None:
                 path = frame.GetPCAddress().GetLineEntry()
-                vimOutCb('OutCb','current file', path)
+                vimOutCb('current file', path)
     else:
         vimErrCb("Unable to get a line entry for frame")
 
@@ -96,34 +94,35 @@ def line_at_frame(debugger, command, result, internal_dict):
 # custom helpers
 #
 
-def getSelectedFrame():
+def getSelectedFrame(debugger):
     frame = None
-    for thread in lldb.debugger.GetSelectedTarget().GetProcess():
+    for thread in debugger.GetSelectedTarget().GetProcess():
         frame = thread.GetSelectedFrame()
 
     return frame
 
-def getLineEntryFromFrame():
+def getLineEntryFromFrame(debugger):
     """ return full path from frame """
-    frame = getSelectedFrame()
+    frame = getSelectedFrame(debugger)
     path = frame.GetPCAddress().GetLineEntry()
     return path
 
 def breakpoints(debugger):
     """ return a breakpoint dict of form = {'filename:line_nr': [id, id, ...]} """
     target = debugger.GetSelectedTarget()
-    id_dict = {}
+    breakpoints = {}
 
     for bp in target.breakpoint_iter():
         for bl in bp:
             loc = bl.GetAddress().GetLineEntry()
             key = str(loc.GetFileSpec()) + ':' + str(loc.GetLine())
-            if key in id_dict:
-                id_dict[key].append(bp.GetID())
+            #vimOutCb(JSON(key))
+            if key in breakpoints:
+                breakpoints[key].append(bp.GetID())
             else:
-                id_dict[key] = [bp.GetID()]
+                breakpoints[key] = [bp.GetID()]
 
-    return id_dict
+    return breakpoints
 
 
 
@@ -169,30 +168,28 @@ class EventListeningThread(threading.Thread):
             if listener.WaitForEvent(1, event):
 
                 event_mask = event.GetType()
-                vimOutCb('OutCb', 'event', event_mask)
-                #vimOutCb('OutCb', 'debugger', self.dbg)
+                #vimOutCb( 'event', event_mask)
+                #vimOutCb( 'debugger', self.dbg)
 
                 if lldb.SBBreakpoint_EventIsBreakpointEvent(event):
-                    bp = lldb.SBBreakpoint_GetBreakpointFromEvent(event)
+                   # bp = lldb.SBBreakpoint_GetBreakpointFromEvent(event)
                     bp_dict = breakpoints(self.dbg)
-                    #vimOutCb('OutCb', 'breakpoint', bp)
-                    vimOutCb('OutCb', 'breakpoint', bp_dict)
+                    vimOutCb( 'breakpoint', bp_dict)
 
+                if lldb.SBTarget_EventIsTargetEvent(event):
+                    vimOutCb( 'target', event)
 
-                elif lldb.SBTarget_EventIsTargetEvent(event):
-                    vimOutCb('OutCb', 'target', event)
-
-                elif lldb.SBProcess_EventIsProcessEvent(event):
+                if lldb.SBProcess_EventIsProcessEvent(event):
                     process = lldb.SBProcess().GetProcessFromEvent(event)
                     state = lldb.SBProcess_GetStateFromEvent(event)
-                    vimOutCb('OutCb', 'process:state', lldb.SBProcess.StateAsCString(state))
+                    vimOutCb( 'process:state', lldb.SBProcess.StateAsCString(state))
 
                     if event_mask & lldb.SBProcess.eBroadcastBitStateChanged:
-                        vimOutCb('OutCb', 'process:bbitchanged', lldb.SBProcess.StateAsCString(state))
+                        vimOutCb( 'process:bbitchanged', lldb.SBProcess.StateAsCString(state))
 
                     if lldb.SBProcess_EventIsStructuredDataEvent(event):
                         state = lldb.SBProcess_GetStateFromEvent(event)
-                        vimOutCb('OutCb', 'process:data', lldb.SBProcess.StateAsCString(state))
+                        vimOutCb( 'process:data', lldb.SBProcess.StateAsCString(state))
 
 
 
@@ -239,11 +236,11 @@ def log_cb(msg):
         if header.group(2) == 'ShouldStop':
             frame = getLineEntryFromFrame()
             print('le: ', frame)
-            vimOutCb('OutCb','current file', frame)
+            vimOutCb('current file', frame)
     elif header.group(1) == 'Process':
         if header.group(2) == 'PerformAction':
             frame = getLineEntryFromFrame()
-            vimOutCb('OutCb','current file', frame)
+            vimOutCb('current file', frame)
 
 
 
@@ -310,11 +307,11 @@ def __lldb_init_module(debugger, internal_dict):
 
     # (lldb) log list  - list channels/categories
     debugger.EnableLog('lldb', ['break', 'target', 'step'])
-    #lldb.debugger.EnableLog('lldb', ['default'])
 
     #debugger.HandleCommand('command script add -f lldb_commands.bp_dict bp_dict')
     debugger.HandleCommand('command script add -f lldb_commands.line_at_frame line_at_frame')
-    debugger.HandleCommand('command script add -f lldb_commands.set_log_tty set_log_tty')
+    debugger.HandleCommand('command script add -f lldb_commands.set_log_tty_in set_log_tty_in')
+    debugger.HandleCommand('command script add -f lldb_commands.set_log_tty_out set_log_tty_out')
     debugger.HandleCommand('command script add -f lldb_commands.get_tty get_tty')
 
     #debugger.SetOutputFileHandle(__stdout__, True)
