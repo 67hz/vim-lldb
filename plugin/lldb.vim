@@ -132,7 +132,7 @@ func! s:StartDebug_term()
 
   " remove for single pane
   let s:debug = 1
-  " use terminal as lldb output
+  " use terminal as lldb output for source program
   if exists('s:debug')
     let s:lldb_comms_buf = term_start('NONE', {
           \ 'term_name': 'debugger output',
@@ -148,12 +148,14 @@ func! s:StartDebug_term()
     endif 
   endif
 
-  set modified
+  "set modified
 
 
   " start LLDB interpreter in new terminal
   " the script will launch a debugger instance
-  let cmd = python_path . ' ' . python_script_dir . '/lldb_commands.py'
+  let py_script = '/lldb_commands.py'
+  "let py_script = '/lldb_basic.py'
+  let cmd = python_path . ' ' . python_script_dir . py_script
   let s:lldb_native_buf = term_start(cmd, {
         \ 'term_name': 'lldb',
         \ 'vertical': 1,
@@ -175,12 +177,12 @@ func! s:StartDebug_term()
   call term_setapi(s:lldb_native_buf, "Lldbapi_")
 
   " import custom commands into native LLDB
-  let python_cmds = python_script_dir . '/lldb_commands.py'
+  let python_cmds = python_script_dir . py_script
   call s:SendCommand('command script import ' . python_cmds)
 
   " redirect LLDB log output to stdin of comms buff
-  call s:SendCommand('set_tty_out ' . pty_in)
-  call s:SendCommand('set_tty_in ' . pty_out)
+  call s:SendCommand('set_tty_out ' . pty_out)
+  call s:SendCommand('set_tty_in ' . pty_in)
 
   call s:StartDebug_common()
 endfunc
@@ -226,7 +228,6 @@ func s:MapCommands()
         \'<S-r>': [#{cmd: ':LRun', mode: 'n', withTarget: 0},
         \ #{cmd: '<C-w>:LRun', mode: 't', withTarget: 0}],
         \'<C-l>': [#{cmd: 'clear -internal', mode: 't', withTarget: 0}],
-        \'<C-z>': [#{cmd: 'wipe -internal', mode: 't', withTarget: 0}],
         \}
   let s:key_maps = {}
 

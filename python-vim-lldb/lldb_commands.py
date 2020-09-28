@@ -11,7 +11,7 @@ import lldb_path
 import shlex
 import optparse
 import json
-from sys import __stdout__, __stdin__
+from sys import __stdout__, __stdin__, exit
 from re import compile, VERBOSE, search, sub
 import threading
 
@@ -72,7 +72,7 @@ def set_tty_out(debugger, command, result, internal_dict):
         OUT_FD = open(path, "w")
 
     debugger.SetOutputFileHandle(OUT_FD, True)
-    debugger.SetErrorFileHandle(OUT_FD, True)
+    debugger.SetErrorFileHandle(OUT_FD, False)
     handle = debugger.GetOutputFileHandle()
     result.write('output redirected to fd: %s\n'% OUT_FD.name)
     result.PutOutput(handle)
@@ -171,7 +171,7 @@ class EventListeningThread(threading.Thread):
                 if self.target:
                     vimOutCb('target-set', self.target)
                     # valid target set so process events async
-                    self.dbg.SetAsync(True)
+                    #self.dbg.SetAsync(True)
 
                 #vimOutCb( 'debugger', self.dbg)
                 if lldb.SBTarget_EventIsTargetEvent(event):
@@ -182,7 +182,13 @@ class EventListeningThread(threading.Thread):
                 if lldb.SBProcess_EventIsProcessEvent(event):
                     process = lldb.SBProcess().GetProcessFromEvent(event)
                     state = lldb.SBProcess_GetStateFromEvent(event)
+                    tid = threading.get_ident()
+                    if state == lldb.eStateStopped:
+                        vimOutCb('process stopped in tid:', tid)
                     vimOutCb( 'process:state', self.dbg.StateAsCString(state))
+                    vimOutCb( 'process in tid:', tid)
+                    done = True
+                    break
 
                     if event_mask & lldb.SBProcess.eBroadcastBitStateChanged:
                         state_string = self.dbg.StateAsCString(state)
@@ -194,8 +200,9 @@ class EventListeningThread(threading.Thread):
 
                 if lldb.SBBreakpoint_EventIsBreakpointEvent(event):
                    # bp = lldb.SBBreakpoint_GetBreakpointFromEvent(event)
+                    #print('breakpoints')
                     bp_dict = breakpoints(event)
-                    vimOutCb( 'breakpoint', bp_dict)
+                    #vimOutCb( 'breakpoint', bp_dict)
 
                 if lldb.SBTarget_EventIsTargetEvent(event):
                     vimOutCb( 'target', event)
@@ -260,7 +267,7 @@ class LLDBThread(threading.Thread):
         self.dbg.SetPrompt('(vim-lldb)')
         # do not return from function until process stops during step/continue
         # do not return from function until process stops during step/continue
-        self.dbg.SetAsync(False)
+        self.dbg.SetAsync(True)
 
         handle_events = True
         # TODO investigate why True causes buggy behavior 
@@ -271,7 +278,7 @@ class LLDBThread(threading.Thread):
 
         options = lldb.SBCommandInterpreterRunOptions()
         options.SetEchoCommands(True)
-        options.SetStopOnError(False)
+        options.SetStopOnError(True)
         options.SetStopOnCrash(False)
         options.SetStopOnContinue(False)
         options.SetPrintResults(True)
