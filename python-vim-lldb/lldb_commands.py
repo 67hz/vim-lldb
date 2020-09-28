@@ -11,7 +11,7 @@ import lldb_path
 import shlex
 import optparse
 import json
-from sys import __stdout__, __stdin__, exit
+from sys import __stdout__, __stdin__
 from re import compile, VERBOSE, search, sub
 import threading
 
@@ -21,6 +21,7 @@ try:
     lldbImported = True
 except ImportError:
     lldbImported = False
+
 
 OUT_FD = __stdout__
 IN_FD = __stdin__
@@ -151,7 +152,6 @@ def getDescription(obj, option = None):
 
     return stream.GetData()
 
-
 class EventListeningThread(threading.Thread):
     def __init__(self, debugger):
         threading.Thread.__init__(self)
@@ -173,7 +173,6 @@ class EventListeningThread(threading.Thread):
                     # valid target set so process events async
                     #self.dbg.SetAsync(True)
 
-                #vimOutCb( 'debugger', self.dbg)
                 if lldb.SBTarget_EventIsTargetEvent(event):
                     vimOutCb('basic target', 'none')
                     self.target = lldb.SBTarget_GetTargetFromEvent(event)
@@ -182,107 +181,37 @@ class EventListeningThread(threading.Thread):
                 if lldb.SBProcess_EventIsProcessEvent(event):
                     process = lldb.SBProcess().GetProcessFromEvent(event)
                     state = lldb.SBProcess_GetStateFromEvent(event)
-                    tid = threading.get_ident()
-                    if state == lldb.eStateStopped:
-                        vimOutCb('process stopped in tid:', tid)
-                    vimOutCb( 'process:state', self.dbg.StateAsCString(state))
-                    vimOutCb( 'process in tid:', tid)
-                    done = True
-                    break
+                    if state == lldb.eStateExited:
+                        vimOutCb( 'process:exited', self.dbg.StateAsCString(state))
+                        done = True
+                        # TODO clean up and alert vim
+                        return
 
-                    if event_mask & lldb.SBProcess.eBroadcastBitStateChanged:
+
+                    if state == lldb.eStateStopped:
+                        vimOutCb('process stopped', state)
+
+
+
+                    elif event_mask & lldb.SBProcess.eBroadcastBitStateChanged:
                         state_string = self.dbg.StateAsCString(state)
                         vimOutCb( 'process:bbitchanged', self.dbg.StateAsCString(state))
 
-                    if lldb.SBProcess_EventIsStructuredDataEvent(event):
+                    elif lldb.SBProcess_EventIsStructuredDataEvent(event):
                         state = lldb.SBProcess_GetStateFromEvent(event)
                         vimOutCb( 'process:data', self.dbg.StateAsCString(state))
 
                 if lldb.SBBreakpoint_EventIsBreakpointEvent(event):
-                   # bp = lldb.SBBreakpoint_GetBreakpointFromEvent(event)
-                    #print('breakpoints')
-                    bp_dict = breakpoints(event)
-                    #vimOutCb( 'breakpoint', bp_dict)
+                    bp = lldb.SBBreakpoint_GetBreakpointFromEvent(event)
+                    #bp_dict = breakpoints(event)
+                    vimOutCb( 'breakpoint', bp)
 
                 if lldb.SBTarget_EventIsTargetEvent(event):
                     vimOutCb( 'target', event)
 
+def thread_result_t(message):
+    print('thread_result_t: %s'% message)
 
-
-
-
-""" Send logs off to Vim for parsing """
-def log_cb(msg):
-    # output logs for debugging only
-    if OUT_FD:
-        OUT_FD.write(msg)
-        #vimOutCb('ParseLogs', 'lldb-log', msg)
-
-    log_id = compile(r'\d*?\.\d*\s?')
-    heading = compile('(\w*)\:\:(\w*)')
-    header = search(heading, msg)
-    
-    # Below is a temp placeholder. This will be streamlined into a few basic flows based on select logging
-    if not header:
-        cmd = compile(r'(?<=lldb)\s*(\w*\s*\w*)')
-        header = search(cmd, msg)
-        if header.group(0).strip() == 'Added location':
-            lldb.debugger.HandleCommand('bp_dict')
-        return
-
-    #print('parent: ', header.group(1))
-    #print('sub: ', header.group(2))
-
-    if header.group(1) == 'Target':
-        if header.group(2) == 'Target':
-            #print('New Target')
-            return
-        if header.group(2) == 'AddBreakpoint':
-            # bps not ready yet
-            return
-        if header.group(2) == 'DisableBreakpointByID':
-            # bps not ready yet
-            lldb.debugger.HandleCommand('bp_dict')
-            return
-
-    elif header.group(1) == 'ThreadList':
-        if header.group(2) == 'ShouldStop':
-            frame = getLineEntryFromFrame()
-            print('le: ', frame)
-            vimOutCb('current file', frame)
-    elif header.group(1) == 'Process':
-        if header.group(2) == 'PerformAction':
-            frame = getLineEntryFromFrame()
-            vimOutCb('current file', frame)
-
-
-
-
-class LLDBThread(threading.Thread):
-    def __init__(self, debugger):
-        threading.Thread.__init__(self)
-        self.dbg = debugger
-
-    def run(self):
-        self.dbg.SetPrompt('(vim-lldb)')
-        # do not return from function until process stops during step/continue
-        # do not return from function until process stops during step/continue
-        self.dbg.SetAsync(True)
-
-        handle_events = True
-        # TODO investigate why True causes buggy behavior 
-        spawn_thread = False
-        num_errors = 1
-        quit_requested = True
-        stopped_on_crash = True
-
-        options = lldb.SBCommandInterpreterRunOptions()
-        options.SetEchoCommands(True)
-        options.SetStopOnError(True)
-        options.SetStopOnCrash(False)
-        options.SetStopOnContinue(False)
-        options.SetPrintResults(True)
-        self.dbg.RunCommandInterpreter(handle_events, spawn_thread, options, num_errors, quit_requested, stopped_on_crash)
 
 
 # @TODO kill events thread when LLDB stops
@@ -293,23 +222,33 @@ if __name__ == '__main__':
                 ('LldbErrFatalCb', 'Failed to import vim-lldb. Try setting g:lldb_python_interpreter_path=\'path/to/python\' in .vimrc. See README for help.',))
         sys.exit()
     else:
-        lldb.debugger = lldb.SBDebugger.Create(True)
 
-        t_lldb = LLDBThread(lldb.debugger)
-        #lldb.SBHostOS_ThreadCreated('vim-lldb-ci')
+        lldb.debugger = lldb.SBDebugger.Create(True)
+        lldb.debugger.SetAsync(True)
+
+        handle_events = True
+        spawn_thread = False
+        num_errors = 1
+        quit_requested = True
+        stopped_on_crash = True
+
+        options = lldb.SBCommandInterpreterRunOptions()
+        options.SetEchoCommands(True)
+        options.SetStopOnError(False)
+        options.SetStopOnCrash(False)
+        options.SetStopOnContinue(False)
+        options.SetPrintResults(False)
+
+        lldb.debugger.RunCommandInterpreter(handle_events, spawn_thread, options, num_errors, quit_requested, stopped_on_crash)
+
+        #t_error = lldb.SBError()
+        #lldb.SBHostOS.ThreadJoin('lldb.debugger.io-handler', thread_result_t, t_error)
 
         t_events = EventListeningThread(lldb.debugger)
-        #lldb.SBHostOS_ThreadCreated('vim-lldb-events')
+        lldb.SBHostOS_ThreadCreated('vim-lldb-events')
 
-        t_lldb.start()
         t_events.start()
-
-        t_lldb.join()
         t_events.join()
-
-        lldb.debugger.Terminate()
-
-
 
 
 def __lldb_init_module(debugger, internal_dict):

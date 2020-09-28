@@ -154,7 +154,6 @@ func! s:StartDebug_term()
   " start LLDB interpreter in new terminal
   " the script will launch a debugger instance
   let py_script = '/lldb_commands.py'
-  "let py_script = '/lldb_basic.py'
   let cmd = python_path . ' ' . python_script_dir . py_script
   let s:lldb_native_buf = term_start(cmd, {
         \ 'term_name': 'lldb',
@@ -227,7 +226,6 @@ func s:MapCommands()
         \'<F5>': [#{cmd: ':LPrint', mode: 'n', withTarget: 0}],
         \'<S-r>': [#{cmd: ':LRun', mode: 'n', withTarget: 0},
         \ #{cmd: '<C-w>:LRun', mode: 't', withTarget: 0}],
-        \'<C-l>': [#{cmd: 'clear -internal', mode: 't', withTarget: 0}],
         \}
   let s:key_maps = {}
 
@@ -288,9 +286,7 @@ func s:SendCommand(cmd)
   " delete any text user has input in lldb terminal before sending a command
   let current_lldb_cmd_line = trim(term_getline(s:lldb_native_buf, '.'))
   if current_lldb_cmd_line !=# '(lldb)' && len(current_lldb_cmd_line) > 0
-    "echomsg 'clear data placeholder'
     "exe 'termwinkey CTRL-C'
-    "call term_sendkeys(s:lldb_native_buf, 'wipe -internal ' . "\r")
   endif
   call term_sendkeys(s:lldb_native_buf, a:cmd . "\r")
 endfunc
