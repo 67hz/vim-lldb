@@ -1,5 +1,6 @@
 # TODO: check loading init files doesn't break anything, sourcemaps
 # ref:
+#  lldb_enumerations.h
 #  TestEvents.py
 # Useful built-ins
 #   Custom breakpoint functions: use to connect callbacks here
@@ -7,11 +8,12 @@
 
 
 
+from __future__ import print_function
 import lldb_path
 import shlex
 import optparse
 import json
-from sys import __stdout__, __stdin__
+from sys import __stdout__, __stdin__, stdout, stdin
 from re import compile, VERBOSE, search, sub
 import threading
 
@@ -61,7 +63,7 @@ def set_tty_in(debugger, command, result, internal_dict):
     debugger.SetInputFileHandle(IN_FD, True)
     handle = debugger.GetInputFileHandle()
     result.write('input redirected to fd: %s\n'% IN_FD.name)
-    result.PutOutput(OUT_FD)
+    #result.PutOutput(OUT_FD)
 
 def set_tty_out(debugger, command, result, internal_dict):
     """ redirect output file """
@@ -76,7 +78,7 @@ def set_tty_out(debugger, command, result, internal_dict):
     debugger.SetErrorFileHandle(OUT_FD, False)
     handle = debugger.GetOutputFileHandle()
     result.write('output redirected to fd: %s\n'% OUT_FD.name)
-    result.PutOutput(handle)
+    #result.PutOutput(handle)
 
 def line_at_frame(debugger, command, result, internal_dict):
     """ return the source file's line # based on a the selected frame """
@@ -152,69 +154,109 @@ def getDescription(obj, option = None):
 
     return stream.GetData()
 
+def requestStart(process, event):
+    # TODO need a way to continue based on user input
+    #listen for enter key
+    cont = input('continue process [y/n]:')
+    if 'y' in cont:
+        print('continuing process')
+        error = process.Continue()
+
+        if not error.Success():
+            print('could not start process')
+
+
+
 class EventListeningThread(threading.Thread):
-    def __init__(self, debugger):
+    def __init__(self, debugger, printer):
         threading.Thread.__init__(self)
         self.dbg = debugger
+        self.printer = printer
 
     def run(self):
         """ main loop to listen for LLDB events """
         listener = self.dbg.GetListener()
+        self.broadcaster = self.dbg.GetCommandInterpreter().GetBroadcaster()
         event = lldb.SBEvent()
+        self.process = None
         done = False
 
         while not done:
             if listener.WaitForEvent(1, event):
                 event_mask = event.GetType()
                 self.target = self.dbg.GetSelectedTarget()
-
-                if self.target:
-                    vimOutCb('target-set', self.target)
-                    # valid target set so process events async
-                    #self.dbg.SetAsync(True)
+                self.printer('event', getDescription(event))
+                self.printer('flavor', event.GetDataFlavor())
 
                 if lldb.SBTarget_EventIsTargetEvent(event):
-                    vimOutCb('basic target', 'none')
                     self.target = lldb.SBTarget_GetTargetFromEvent(event)
-                    vimOutCb( 'target', self.dbg.GetSelectedTarget())
+                    self.printer( 'target', self.dbg.GetSelectedTarget())
 
                 if lldb.SBProcess_EventIsProcessEvent(event):
-                    process = lldb.SBProcess().GetProcessFromEvent(event)
-                    state = lldb.SBProcess_GetStateFromEvent(event)
-                    if state == lldb.eStateExited:
-                        vimOutCb( 'process:exited', self.dbg.StateAsCString(state))
-                        done = True
-                        # TODO clean up and alert vim
-                        return
-
-
-                    if state == lldb.eStateStopped:
-                        vimOutCb('process stopped', state)
-
-
-
-                    elif event_mask & lldb.SBProcess.eBroadcastBitStateChanged:
-                        state_string = self.dbg.StateAsCString(state)
-                        vimOutCb( 'process:bbitchanged', self.dbg.StateAsCString(state))
-
-                    elif lldb.SBProcess_EventIsStructuredDataEvent(event):
+                    self.process = lldb.SBProcess().GetProcessFromEvent(event)
+                    if self.process.eBroadcastBitStateChanged:
                         state = lldb.SBProcess_GetStateFromEvent(event)
-                        vimOutCb( 'process:data', self.dbg.StateAsCString(state))
+                        self.printer( 'process:bbitchanged', self.dbg.StateAsCString(state))
+
+                        if state == lldb.eStateStopped:
+                            #TODO focus on selected thread for IO
+                            # add threads to list for vim
+                            error = lldb.SBError()
+                            self.printer('process stopped state', state)
+                            for t in self.process:
+                                self.printer('tid', t.GetThreadID())
+                                self.printer('stop reason', t.GetStopReason())
+                                self.printer('desc', getDescription(t))
+                            
+                            #self.printer('continue-request', state)
+
+                        if event_mask & self.process.eBroadcastBitSTDOUT:
+                            if event_mask == 4:
+                                result = self.process.GetSTDOUT(1024)
+                                if result:
+                                    self.printer('stdout 0x4', result)
+                                    #self.process.PutOutput(result)
+                                    #OUT_FD.write(result)
+                                   # requestStart(self.process, event)
+
+                                else:
+                                    stream = lldb.SBStream()
+                                    event.GetDescription(stream)
+                                    self.printer('stdout-available', stream.GetData())
+
+                            #process.PutOutput('result', result)
+                            #self.broadcaster.BroadcastEventByType(0x08)
+                            #self.process.Continue()
+
+                        if state == lldb.eStateRunning:
+                            self.printer('process running', state)
+                            # TODO handle running program stopped state
+                            # then continue
+                            #process.Continue()
+                            requestStart(self.process, event)
+                            continue
 
                 if lldb.SBBreakpoint_EventIsBreakpointEvent(event):
                     bp = lldb.SBBreakpoint_GetBreakpointFromEvent(event)
                     #bp_dict = breakpoints(event)
-                    vimOutCb( 'breakpoint', bp)
+                    self.printer( 'breakpoint', bp)
 
-                if lldb.SBTarget_EventIsTargetEvent(event):
-                    vimOutCb( 'target', event)
+                # 0x04 = quit type - where is this defined - not in lldb-enumerations.h???
+                #if event_mask & 0x04 and False:
+                if event_mask & 0x04 and lldb.SBCommandInterpreter_EventIsCommandInterpreterEvent(event):
+                    self.printer('exited request with process', self.process)
+                    if self.process is not None and self.process.IsValid():
+                        self.printer('process IsValid', self.process.IsValid())
+                        self.process.Kill()
+
+                    return
+
 
 def thread_result_t(message):
     print('thread_result_t: %s'% message)
 
 
 
-# @TODO kill events thread when LLDB stops
 if __name__ == '__main__':
 
     if not lldbImported:
@@ -223,32 +265,35 @@ if __name__ == '__main__':
         sys.exit()
     else:
 
-        lldb.debugger = lldb.SBDebugger.Create(True)
+        lldb.debugger = lldb.SBDebugger.Create()
         lldb.debugger.SetAsync(False)
+
         spawn_thread = True
-
         handle_events = True
-
-        num_errors = 1
+        num_errors = 0
         quit_requested = True
-        stopped_on_crash = True
+        stopped_on_crash = False
 
         options = lldb.SBCommandInterpreterRunOptions()
         options.SetEchoCommands(True)
         options.SetStopOnError(False)
         options.SetStopOnCrash(False)
         options.SetStopOnContinue(False)
-        options.SetPrintResults(False)
-
-        lldb.debugger.RunCommandInterpreter(handle_events, spawn_thread, options, num_errors, quit_requested, stopped_on_crash)
+        options.SetPrintResults(True)
+        options.SetAddToHistory(True)
 
         #t_error = lldb.SBError()
         #lldb.SBHostOS.ThreadJoin('lldb.debugger.io-handler', thread_result_t, t_error)
 
-        t_events = EventListeningThread(lldb.debugger)
-        lldb.SBHostOS_ThreadCreated('vim-lldb-events')
+        t_events = EventListeningThread(lldb.debugger, vimOutCb)
 
+        lldb.debugger.RunCommandInterpreter(handle_events, spawn_thread, options, num_errors, quit_requested, stopped_on_crash)
         t_events.start()
+        vimOutCb('ci running')
+
+        #lldb.SBHostOS_ThreadCreated('vim-lldb-events')
+
+
         t_events.join()
 
 
