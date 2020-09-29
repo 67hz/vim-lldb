@@ -138,6 +138,7 @@ func! s:StartDebug_term()
           \ 'term_name': 'debugger output',
           \ 'vertical': 1,
           \ 'hidden': 0,
+          \ 'eof_chars': 'exit()',
           \})
 
     let pty_out = job_info(term_getjob(s:lldb_comms_buf))['tty_out']
@@ -414,7 +415,8 @@ func! g:Lldbapi_LldbOutCb(bufnum, args)
   endif
 
   if cmd =~? 'breakpoint'
-    call s:UI_SyncBreakpoints(a:args[1])
+    echomsg 'bp placeholder'
+    "call s:UI_SyncBreakpoints(a:args[1])
 
   "elseif cmd =~? 'target'
     "echomsg 'Got target event'

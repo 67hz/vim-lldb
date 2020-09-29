@@ -224,10 +224,11 @@ if __name__ == '__main__':
     else:
 
         lldb.debugger = lldb.SBDebugger.Create(True)
-        lldb.debugger.SetAsync(True)
+        lldb.debugger.SetAsync(False)
+        spawn_thread = True
 
         handle_events = True
-        spawn_thread = False
+
         num_errors = 1
         quit_requested = True
         stopped_on_crash = True
