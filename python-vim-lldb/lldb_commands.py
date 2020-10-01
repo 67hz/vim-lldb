@@ -13,20 +13,35 @@ import lldb_path
 import shlex
 import optparse
 import json
-from sys import __stdout__, __stdin__, stdout, stdin
+from sys import __stdout__, __stdin__, __stderr__, stdout, stdin, stderr
 from re import compile, VERBOSE, search, sub
+from time import sleep
 import threading
 
 try:
     lldb_path.update_sys_path()
-    import lldb
+    from lldb import *
     lldbImported = True
 except ImportError:
     lldbImported = False
 
 
+LINE_MAX = 1024
+stdout_buffer = ''
+stdin_buffer = ''
 OUT_FD = __stdout__
 IN_FD = __stdin__
+ERR_FD = __stderr__
+debugger = None
+process = None
+target = None
+output_event_listener = None
+printer = print
+broadcaster = None
+
+event_has_process = threading.Event()
+
+
 
 def JSON(obj):
     " create JSON from object and escape all quotes """
@@ -46,16 +61,15 @@ def vimErrCb(err):
 
 def get_tty(debugger, command, result, internal_dict):
     handle = debugger.GetOutputFileHandle()
-    result.write('tty output: %s\n'% handle)
+    result.write('tty output: %s\n'% OUT_FD)
     handle = debugger.GetInputFileHandle()
-    result.write('tty input: %s\n'% handle)
+    result.write('tty input: %s\n'% IN_FD)
     result.PutOutput(handle)
 
 def set_tty_in(debugger, command, result, internal_dict):
     """ redirect input file """
     args = shlex.split(command)
     global IN_FD
-    IN_FD = __stdin__
     if len(args) > 0:
         path = args[0].strip()
         IN_FD = open(path, "r")
@@ -63,7 +77,6 @@ def set_tty_in(debugger, command, result, internal_dict):
     debugger.SetInputFileHandle(IN_FD, True)
     handle = debugger.GetInputFileHandle()
     result.write('input redirected to fd: %s\n'% IN_FD.name)
-    #result.PutOutput(OUT_FD)
 
 def set_tty_out(debugger, command, result, internal_dict):
     """ redirect output file """
@@ -75,7 +88,7 @@ def set_tty_out(debugger, command, result, internal_dict):
         OUT_FD = open(path, "w")
 
     debugger.SetOutputFileHandle(OUT_FD, True)
-    debugger.SetErrorFileHandle(OUT_FD, False)
+    debugger.SetErrorFileHandle(OUT_FD, True)
     handle = debugger.GetOutputFileHandle()
     result.write('output redirected to fd: %s\n'% OUT_FD.name)
     #result.PutOutput(handle)
@@ -112,7 +125,7 @@ def getLineEntryFromFrame(debugger):
 
 def breakpoints(event):
     """ return a breakpoint dict of form = {'filename:line_nr': [id, id, ...]} """
-    target = lldb.SBTarget_GetTargetFromEvent(event)
+    target = SBTarget_GetTargetFromEvent(event)
     #vimOutCb('bptarget', target)
     breakpoints = {}
 
@@ -136,13 +149,13 @@ def getDescription(obj, option = None):
         return None
 
     desc = None
-    stream = lldb.SBStream()
+    stream = SBStream()
     get_desc_method = getattr(obj, 'GetDescription')
 
-    tuple = (lldb.SBTarget, lldb.SBBreakpointLocation, lldb.SBWatchpoint)
+    tuple = (SBTarget, SBBreakpointLocation, SBWatchpoint)
     if isinstance(obj, tuple):
         if option is None:
-            option = lldb.eDescriptionLevelVerbose
+            option = eDescriptionLevelVerbose
 
     if option is None:
         success = get_desc_method(stream)
@@ -162,111 +175,192 @@ def requestStart(process, event):
         print('continuing process')
         error = process.Continue()
 
+
         if not error.Success():
             print('could not start process')
 
 
 
 class EventListeningThread(threading.Thread):
-    def __init__(self, debugger, printer):
-        threading.Thread.__init__(self)
-        self.dbg = debugger
-        self.printer = printer
-
     def run(self):
+        global stdout_buffer
         """ main loop to listen for LLDB events """
-        listener = self.dbg.GetListener()
-        self.broadcaster = self.dbg.GetCommandInterpreter().GetBroadcaster()
-        event = lldb.SBEvent()
-        self.process = None
+        listener = debugger.GetListener()
+        #broadcaster = debugger.GetCommandInterpreter().GetBroadcaster()
+        event = SBEvent()
+        process = None
         done = False
+        state_prev = None
 
         while not done:
             if listener.WaitForEvent(1, event):
                 event_mask = event.GetType()
-                self.target = self.dbg.GetSelectedTarget()
-                self.printer('event', getDescription(event))
-                self.printer('flavor', event.GetDataFlavor())
+                self.target = debugger.GetSelectedTarget()
+                printer('event', getDescription(event))
+                printer('flavor', event.GetDataFlavor())
 
-                if lldb.SBTarget_EventIsTargetEvent(event):
-                    self.target = lldb.SBTarget_GetTargetFromEvent(event)
-                    self.printer( 'target', self.dbg.GetSelectedTarget())
+                if SBTarget_EventIsTargetEvent(event):
+                    self.target = SBTarget_GetTargetFromEvent(event)
+                    printer( 'target', debugger.GetSelectedTarget())
 
-                if lldb.SBProcess_EventIsProcessEvent(event):
-                    self.process = lldb.SBProcess().GetProcessFromEvent(event)
-                    if self.process.eBroadcastBitStateChanged:
-                        state = lldb.SBProcess_GetStateFromEvent(event)
-                        self.printer( 'process:bbitchanged', self.dbg.StateAsCString(state))
+                if SBProcess_EventIsProcessEvent(event):
+                    process = SBProcess().GetProcessFromEvent(event)
+                    printer('set process event')
+                    event_has_process.set()
 
-                        if state == lldb.eStateStopped:
-                            #TODO focus on selected thread for IO
-                            # add threads to list for vim
-                            error = lldb.SBError()
-                            self.printer('process stopped state', state)
-                            for t in self.process:
-                                self.printer('tid', t.GetThreadID())
-                                self.printer('stop reason', t.GetStopReason())
-                                self.printer('desc', getDescription(t))
-                            
-                            #self.printer('continue-request', state)
+                    if process.eBroadcastBitStateChanged:
+                        state = SBProcess_GetStateFromEvent(event)
+                        if state_prev is not None:
+                            printer('old state:', debugger.StateAsCString(state_prev))
+                            printer('new state:', debugger.StateAsCString(state))
+                            # TODO add diff logic before setting
 
-                        if event_mask & self.process.eBroadcastBitSTDOUT:
-                            if event_mask == 4:
-                                result = self.process.GetSTDOUT(1024)
-                                if result:
-                                    self.printer('stdout 0x4', result)
-                                    #self.process.PutOutput(result)
-                                    #OUT_FD.write(result)
-                                   # requestStart(self.process, event)
+                        state_prev = state
 
-                                else:
-                                    stream = lldb.SBStream()
-                                    event.GetDescription(stream)
-                                    self.printer('stdout-available', stream.GetData())
 
-                            #process.PutOutput('result', result)
-                            #self.broadcaster.BroadcastEventByType(0x08)
-                            #self.process.Continue()
+                        printer( 'process:bbitchanged', debugger.StateAsCString(state))
+                        if event_mask & eStateRunning:
+                            printer('run')
+                            # read input or allow process to resume
+                            #process.PutSTDIN('foo')
+                            continue
+                            #process.Clear()
 
-                        if state == lldb.eStateRunning:
-                            self.printer('process running', state)
-                            # TODO handle running program stopped state
-                            # then continue
-                            #process.Continue()
-                            requestStart(self.process, event)
+                        if event_mask & eStateStopped:
+                            stopid = process.GetStopID()
+                            for t in process:
+                                if t.GetStopReason() == eStopReasonBreakpoint:
+                                    printer('bp stop')
+                                if t.GetStopReason() == 8:
+                                    printer('stopped at 8')
+                                    #process.Continue()
+                                if t.GetStopReason() == 3:
+                                    printer('stopped at 3')
+
+                                printer('t desc', t.GetStopReason())
+
+
+                            t = process.GetSelectedThread()
+                            t.Resume()
                             continue
 
-                if lldb.SBBreakpoint_EventIsBreakpointEvent(event):
-                    bp = lldb.SBBreakpoint_GetBreakpointFromEvent(event)
-                    #bp_dict = breakpoints(event)
-                    self.printer( 'breakpoint', bp)
+
+                        if event_mask & (SBProcess.eBroadcastBitSTDOUT |
+                                SBProcess.eBroadcastBitSTDERR):
+                            if event_mask & 0x4:
+                                result = process.GetSTDOUT(LINE_MAX)
+                                stdout_buffer += result
+                                debugger.SetInputFileHandle(IN_FD, True)
+                            else:
+                                stream = SBStream()
+                                event.GetDescription(stream)
+                                printer('output_event', stream.GetData())
+                                printer('stderr', process.GetSTDERR(LINE_MAX))
+
+                            """
+                            if event_mask & eStateRunning:
+                                if event_mask & eInputReaderEndOfFile:
+                                    printer('EOF')
+                                    # TODO switch to process input
+                                    """
+
 
                 # 0x04 = quit type - where is this defined - not in lldb-enumerations.h???
                 #if event_mask & 0x04 and False:
-                if event_mask & 0x04 and lldb.SBCommandInterpreter_EventIsCommandInterpreterEvent(event):
-                    self.printer('exited request with process', self.process)
-                    if self.process is not None and self.process.IsValid():
-                        self.printer('process IsValid', self.process.IsValid())
-                        self.process.Kill()
+                if SBCommandInterpreter_EventIsCommandInterpreterEvent(event):
+                    printer('\n\nCI event', event)
+                    continue
+
+                if event_mask & 0x04 and SBCommandInterpreter_EventIsCommandInterpreterEvent(event):
+                    printer('exited request with process', process)
+                    if process is not None and process.IsValid():
+                        printer('procsess IsValid', process.IsValid())
+                        process.Kill()
 
                     return
+
 
 
 def thread_result_t(message):
     print('thread_result_t: %s'% message)
 
 
+def _stop_event():
+    global process
+    Forever = True
+    printer('broadcaster stop events', broadcaster.EventTypeHasListeners(SBProcess.eBroadcastBitStateChanged))
+    event = SBEvent()
+
+    while Forever:
+        if not stop_event_listener:
+            return
+
+        if stop_event_listener.WaitForEventForBroadcasterWithType(1,
+                broadcaster, SBProcess.eBroadcastBitStateChanged, event):
+            printer('got event')
+            event_mask = event.GetType()
+            printer('SE', event_mask)
+
+
+def _io_loop():
+    pass
+
+
+def _output_event():
+    #global OUT_FD, ERR_FD
+    global process
+    Forever = True
+    #broadcaster = debugger.GetCommandInterpreter().GetBroadcaster()
+    printer('broadcaster', broadcaster.EventTypeHasListeners(SBProcess.eBroadcastBitSTDERR | SBProcess.eBroadcastBitSTDOUT))
+    event = SBEvent()
+
+    while Forever:
+
+        if not output_event_listener:
+            return
+
+        if output_event_listener.WaitForEventForBroadcasterWithType(1,
+                broadcaster,
+                SBProcess.eBroadcastBitSTDOUT | SBProcess.eBroadcastBitSTDERR,
+                event):
+            event_mask = event.GetType()
+            printer('OE', event_mask)
+
+            if not process:
+                process = SBProcess.GetProcessFromEvent(event)
+                printer('no process', process)
+
+
+            if event_mask & 0x4:
+                result = process.GetSTDOUT(LINE_MAX)
+                if result:
+                    stdout_buffer += result
+                    printer('stdout_buffer:')
+                    printer(stdout_buffer)
+                    process.Continue()
+
+                else:
+                    stream = SBStream()
+                    event = event.GetDescription(stream)
+                    printer("_output_event", stream.GetData())
+                    printer("_stderr", process.GetSTDERR(LINE_MAX))
+
+
+
+
 
 if __name__ == '__main__':
-
     if not lldbImported:
         print('\033]51;["call","Lldbapi_%s", ["%s"]]\007' %
-                ('LldbErrFatalCb', 'Failed to import vim-lldb. Try setting g:lldb_python_interpreter_path=\'path/to/python\' in .vimrc. See README for help.',))
+                ('LldbErrFatalCb', 'Failed to import vim- Try setting g:lldb_python_interpreter_path=\'path/to/python\' in .vimrc. See README for help.',))
         sys.exit()
     else:
 
-        lldb.debugger = lldb.SBDebugger.Create()
-        lldb.debugger.SetAsync(False)
+        debugger = SBDebugger.Create()
+        debugger.SetAsync(True)
+
+        # Temp Switch for vim
+        printer = vimOutCb
 
         spawn_thread = True
         handle_events = True
@@ -274,7 +368,7 @@ if __name__ == '__main__':
         quit_requested = True
         stopped_on_crash = False
 
-        options = lldb.SBCommandInterpreterRunOptions()
+        options = SBCommandInterpreterRunOptions()
         options.SetEchoCommands(True)
         options.SetStopOnError(False)
         options.SetStopOnCrash(False)
@@ -282,26 +376,46 @@ if __name__ == '__main__':
         options.SetPrintResults(True)
         options.SetAddToHistory(True)
 
-        #t_error = lldb.SBError()
-        #lldb.SBHostOS.ThreadJoin('lldb.debugger.io-handler', thread_result_t, t_error)
+        # create listeners
+        #t_events = EventListeningThread()
+        output_event_listener = SBListener('output-listener')
+        stop_event_listener = SBListener('stop-listener')
+        broadcaster = debugger.GetCommandInterpreter().GetBroadcaster()
+        event = SBEvent()
+        #debugger.HandleProcessEvent(process, event, OUT_FD, ERR_FD)
 
-        t_events = EventListeningThread(lldb.debugger, vimOutCb)
+        broadcaster.AddListener(output_event_listener, SBProcess.eBroadcastBitSTDOUT | SBProcess.eBroadcastBitSTDERR)
+        broadcaster.AddListener(stop_event_listener, SBProcess.eBroadcastBitStateChanged)
 
-        lldb.debugger.RunCommandInterpreter(handle_events, spawn_thread, options, num_errors, quit_requested, stopped_on_crash)
-        t_events.start()
-        vimOutCb('ci running')
+        #t_events.start()
+        debugger.RunCommandInterpreter(handle_events, spawn_thread, options, num_errors, quit_requested, stopped_on_crash)
 
-        #lldb.SBHostOS_ThreadCreated('vim-lldb-events')
+        threading.Thread(target=_output_event, name='output_event_listener', args=()).start()
 
 
-        t_events.join()
+        sleep(10)
+        threading.Thread(target=_stop_event, name='stop_event_listener', args=()).start()
+        process = debugger.GetCommandInterpreter().GetProcess()
+
+        print('afterall')
+
+
+
+
+        #t_events.join()
+
+
+
+
+def log_cb(message):
+    printer(message)
 
 
 def __lldb_init_module(debugger, internal_dict):
     """ called when importing this module into the lldb interpreter """
     # (lldb) log list  - list channels/categories
     #debugger.SetLoggingCallback(log_cb)
-    #debugger.EnableLog('lldb', ['break', 'target', 'step'])
+    #debugger.EnableLog('lldb', ['process'])
 
     debugger.HandleCommand('command script add -f lldb_commands.line_at_frame line_at_frame')
     debugger.HandleCommand('command script add -f lldb_commands.set_tty_in set_tty_in')
@@ -309,4 +423,6 @@ def __lldb_init_module(debugger, internal_dict):
     debugger.HandleCommand('command script add -f lldb_commands.get_tty get_tty')
 
     #debugger.SetOutputFileHandle(__stdout__, True)
+
+
 

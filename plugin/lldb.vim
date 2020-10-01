@@ -159,6 +159,7 @@ func! s:StartDebug_term()
         \ 'term_name': 'lldb',
         \ 'vertical': 1,
         \ 'hidden': 0,
+        \ 'eof_chars': 'exit',
         \})
 
   let lldb_options = {}
@@ -180,8 +181,8 @@ func! s:StartDebug_term()
   call s:SendCommand('command script import ' . python_cmds)
 
   " redirect LLDB log output to stdin of comms buff
-  call s:SendCommand('set_tty_out ' . pty_out)
   call s:SendCommand('set_tty_in ' . pty_in)
+  call s:SendCommand('set_tty_out ' . pty_out)
 
   call s:StartDebug_common()
 endfunc
@@ -260,7 +261,7 @@ func s:UnmapCommands()
 endfunc
 
 func s:DeleteCommands()
-  comclear
+  " TODO iterate of items(s:custom_map_keys)
 endfunc
 
 func s:EndTermDebug(job, status)
