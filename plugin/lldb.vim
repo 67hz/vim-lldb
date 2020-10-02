@@ -152,9 +152,9 @@ func! s:StartDebug_term()
 
 
   " start LLDB interpreter in new terminal
-  " the script will launch a debugger instance
-  let py_script = '/lldb_commands.py'
-  let cmd = python_path . ' ' . python_script_dir . py_script
+  " LLDB gets vim's terminal out (above) as input
+  let cmd = s:script_dir . '/source/bin/vim-lldb -i ' . pty_out . ' -o ' . pty_in
+
   let s:lldb_native_buf = term_start(cmd, {
         \ 'term_name': 'lldb',
         \ 'vertical': 1,
@@ -176,13 +176,15 @@ func! s:StartDebug_term()
 
   call term_setapi(s:lldb_native_buf, "Lldbapi_")
 
-  " import custom commands into native LLDB
-  let python_cmds = python_script_dir . py_script
-  call s:SendCommand('command script import ' . python_cmds)
+  if exists('s:python')
+    " import custom commands into native LLDB
+    let python_cmds = python_script_dir . py_script
+    call s:SendCommand('command script import ' . python_cmds)
 
-  " redirect LLDB log output to stdin of comms buff
-  call s:SendCommand('set_tty_in ' . pty_in)
-  call s:SendCommand('set_tty_out ' . pty_out)
+    " redirect LLDB log output to stdin of comms buff
+    call s:SendCommand('set_tty_in ' . pty_in)
+    call s:SendCommand('set_tty_out ' . pty_out)
+  endif
 
   call s:StartDebug_common()
 endfunc
