@@ -26,13 +26,13 @@ int Vim::setTTY(int fd, const char *p) {
     fp = std::fopen(p, "r");
     if (fp == NULL)
       return -1;
-    this->_tty_in = fp;
+    this->_tty_in.emplace(fp);
   }
   else if (fd == 1) {
     fp = std::fopen(p, "w");
     if (fp == NULL)
       return -1;
-    this->_tty_out = fp;
+    this->_tty_out.emplace(fp);
   }
   else {
     return -1;
@@ -41,11 +41,11 @@ int Vim::setTTY(int fd, const char *p) {
   return 1;
 };
 
-std::FILE* Vim::getTTYIN() const {
+llvm::Optional<std::FILE*> Vim::getTTYIN() const {
     return this->_tty_in;
 }
 
-std::FILE* Vim::getTTYOUT() const {
+llvm::Optional<std::FILE*> Vim::getTTYOUT() const {
     return this->_tty_out;
 }
 
@@ -92,18 +92,17 @@ int main(int argc, char** argv) {
   SBDebugger::Initialize();
   SBDebugger debugger(SBDebugger::Create());
 
-
   debugger.SetAsync(false);
   if (!debugger.IsValid()) {
     std::cerr << "could not create a valid debugger,\n";
     exit(EXIT_FAILURE);
   }
 
-  if (vim.getTTYIN()) {
-    debugger.SetInputFileHandle(vim.getTTYIN(), true);
+  if (vim.getTTYIN().hasValue()) {
+    debugger.SetInputFileHandle(vim.getTTYIN().getValue(), true);
   }
-  if (vim.getTTYOUT()) {
-    debugger.SetOutputFileHandle(vim.getTTYOUT(), true);
+  if (vim.getTTYOUT().hasValue()) {
+    debugger.SetOutputFileHandle(vim.getTTYOUT().getValue(), true);
   }
 
   debugger.SetAsync(true);

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <lldb/API/SBDebugger.h>
+#include <llvm/ADT/Optional.h>
 
 namespace vim_lldb {
 
@@ -18,15 +19,15 @@ namespace vim_lldb {
 
       // IO to Vim terminals
       int setTTY(int fd, const char *p);
-      std::FILE* getTTYIN() const;
-      std::FILE* getTTYOUT() const;
+      llvm::Optional<std::FILE*> getTTYIN() const;
+      llvm::Optional<std::FILE*> getTTYOUT() const;
 
       ssize_t write(const std::string& message, const void *data);
       ssize_t read(const std::string& message) const;
     private:
       std::string _io_escape_seq;
-      std::FILE *_tty_in;
-      std::FILE *_tty_out;
+      llvm::Optional<std::FILE *> _tty_in;
+      llvm::Optional<std::FILE *> _tty_out;
   };
 
 
